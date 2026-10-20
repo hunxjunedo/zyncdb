@@ -1,0 +1,43 @@
+use crate::DbHandle;
+
+pub trait Command {
+    fn execute(&self, db: DbHandle) -> String;
+}
+
+pub struct Get {
+   pub field: String
+}
+pub struct Set {
+   pub field: String,
+   pub data: String
+}
+pub struct Del {
+   pub field: String
+}
+
+impl Command for Get {
+     fn execute(&self, db: DbHandle) -> String {
+       match db.lock().unwrap().get(&self.field) {
+        Some(value) => value.to_owned(),
+        None => "Value does not exist!".to_string()
+       }
+    }
+}
+
+
+impl Command for Set {
+     fn execute(&self, db: DbHandle) -> String {
+       match db.lock().unwrap().insert(self.field.clone(), self.data.clone()) {
+        Some(_) => "Value update".to_string(),
+        None => "Field did not exist, but created it".to_string()
+       }
+    }
+}
+impl Command for Del {
+     fn execute(&self, db: DbHandle) -> String {
+        match db.lock().unwrap().remove(&self.field) {
+            Some(_) => "Field Succesfully Removed".to_string(),
+            None => "Field does not exist!".to_string()
+        }
+    }
+}

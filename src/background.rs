@@ -24,5 +24,6 @@ pub async fn bg_sweeper(db: Arc<Database>) {
 pub async fn field_delete(db: Arc<Database>, field: String) {
     db.data.lock().unwrap().remove(&field);
     //remove the entry from the sweeper context now
+    db.remove_expiry(field);
     
 }

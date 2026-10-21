@@ -16,5 +16,10 @@ impl Database {
     pub fn set_expiry (&self, field: String, expiry: Expiry) -> bool {
         self.sweeper_context.lock().unwrap().insert(field, expiry).is_none()
     }
+
+    //call when already deleted the value
+    pub fn remove_expiry(&self, field: String) {
+        self.sweeper_context.lock().unwrap().remove(&field);
+    }
 }
 

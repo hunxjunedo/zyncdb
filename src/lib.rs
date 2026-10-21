@@ -5,8 +5,8 @@ use anyhow::{Context, Ok, Result, format_err};
 use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream};
 use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
-    stream: TcpStream,
-    address: SocketAddr
+    address: SocketAddr,
+    reader: BufReader<TcpStream>
 }
 
 type DbHandle = Arc<Mutex<HashMap<String, String>>>;
@@ -42,13 +42,12 @@ impl Database {
 
 impl Connection {
     pub fn new(connection_raw: (TcpStream, SocketAddr)) -> Self {
-        Self { stream: connection_raw.0, address: connection_raw.1 }
+        Self {  address: connection_raw.1, reader: BufReader::new(connection_raw.0) }
     }
 
     pub async fn read_line(&mut self) -> String {
         let mut buf = String::new();
-        let mut reader = BufReader::new(&mut self.stream);
-        let bytes_read = reader.read_line(&mut buf).await.expect("could not read buffer data");
+        let bytes_read = self.reader.read_line(&mut buf).await.expect("could not read buffer data");
         println!("a total of {} bytes were read from a connection", bytes_read);
         buf
     }
@@ -63,10 +62,14 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection)
     loop {
         //1. read a line
         let raw_data = connection.read_line().await;
+        if raw_data.len() == 0 {
+            //break since connection closed, so this task will be completed
+            break;
+        }
         //2. parse the raw data
         let command = from_string(raw_data);
         if let Some(err) = command.as_ref().err(){
-            connection.stream.write(&err.to_string().into_bytes()).await.expect("could not send response");
+            connection.reader.get_mut().write(&err.to_string().into_bytes()).await.expect("could not send response");
             continue;
         }
         let command = command.unwrap();
@@ -74,7 +77,7 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection)
         //todo: allow independent commands to progress in parallel
             
             let command_result = command.execute(&db);
-            connection.stream.write(&command_result.into_bytes()).await.expect("could not send response");
+            connection.reader.get_mut().write(&command_result.into_bytes()).await.expect("could not send response");
         
     }
 }

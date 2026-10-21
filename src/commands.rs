@@ -46,9 +46,9 @@ impl Command for Del {
     }
 }
 
-struct Expire {
-   field: String,
-   ttl: u64
+pub struct Expire {
+   pub field: String,
+   pub ttl: u64
 }
 
 impl Command for Expire {

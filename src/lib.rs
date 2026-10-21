@@ -1,15 +1,16 @@
-use std::{collections::HashMap, net::SocketAddr, os::raw, sync::{Arc, Mutex}};
+use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}};
 mod commands;
-use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpStream, time::Instant};
-
-use crate::commands::{Command, Get, Set, Del};
+mod expiry;
+use anyhow::{Context, Ok, Result, format_err};
+use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream};
+use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
     stream: TcpStream,
     address: SocketAddr
 }
 
 type DbHandle = Arc<Mutex<HashMap<String, String>>>;
-type SweeperContext = Arc<Mutex<HashMap<String, Expiry>>>;
+
 
 #[derive(Default)]
 pub struct Database {
@@ -18,28 +19,17 @@ pub struct Database {
     pub sweeper_context: SweeperContext
 }
 
-impl Database {
-    //returns true if is a new expiry added
-    pub fn set_expiry (&self, field: String, expiry: Expiry) -> bool {
-        self.sweeper_context.lock().unwrap().insert(field, expiry).is_none()
-    }
-}
 
-pub struct Expiry {
-    pub ttl: u64,
-    pub now: Instant
-}
-
-
-    pub fn from_string(raw_data: String) -> Box<dyn Command + Send> {
+    pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
         let commands_chunks : Vec<&str> = raw_data.split(" ").collect();
             println!("{:?}", commands_chunks);
             //todo: command should decide itself what data to get
             match commands_chunks[0] {
-                "GET" => return Box::new(Get {field: commands_chunks[1].to_string()}) as Box<dyn Command + Send>,
-                "SET" => return Box::new(Set { field: commands_chunks[1].to_string(), data: commands_chunks[2].to_string()}),
-                "DEL" => return Box::new(Del { field:  commands_chunks[1].to_string()}),
-                _ => panic!("unknown command!")
+                "GET" => return Ok(Box::new(Get {field: commands_chunks[1].to_string()}) as Box<dyn Command + Send>),
+                "SET" => return Ok(Box::new(Set { field: commands_chunks[1].to_string(), data: commands_chunks[2].to_string()})),
+                "DEL" => return Ok(Box::new(Del { field:  commands_chunks[1].to_string()})),
+                "EXP" => return Ok(Box::new(Expire {field: commands_chunks[1].to_string(), ttl: commands_chunks[2].parse::<u64>().context("please provide a positive number")?})),
+                _ => return Err(format_err!("invalid command"))
             }
         
     }
@@ -75,6 +65,11 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection)
         let raw_data = connection.read_line().await;
         //2. parse the raw data
         let command = from_string(raw_data);
+        if let Some(err) = command.as_ref().err(){
+            connection.stream.write(&err.to_string().into_bytes()).await.expect("could not send response");
+            continue;
+        }
+        let command = command.unwrap();
         //3. process all the commands sequentially for now
         //todo: allow independent commands to progress in parallel
             

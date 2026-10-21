@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::SocketAddr, os::raw, sync::{Arc, Mutex}};
 mod commands;
-use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpStream};
+use tokio::{io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader}, net::TcpStream, time::Instant};
 
 use crate::commands::{Command, Get, Set, Del};
 pub struct Connection {
@@ -9,13 +9,26 @@ pub struct Connection {
 }
 
 type DbHandle = Arc<Mutex<HashMap<String, String>>>;
+type SweeperContext = Arc<Mutex<HashMap<String, Expiry>>>;
 
 #[derive(Default)]
 pub struct Database {
     //todo: allow non string
-    data: DbHandle
+    pub data: DbHandle,
+    pub sweeper_context: SweeperContext
 }
 
+impl Database {
+    //returns true if is a new expiry added
+    pub fn set_expiry (&self, field: String, expiry: Expiry) -> bool {
+        self.sweeper_context.lock().unwrap().insert(field, expiry).is_none()
+    }
+}
+
+pub struct Expiry {
+    pub ttl: u64,
+    pub now: Instant
+}
 
 
     pub fn from_string(raw_data: String) -> Box<dyn Command + Send> {
@@ -56,6 +69,7 @@ impl Connection {
 pub async fn connection_processor(db: Arc<Database>, mut connection: Connection) {
     //spawned for each connection
     //run in a loop, read whatever data comes into a buffer
+    let db = db.clone();
     loop {
         //1. read a line
         let raw_data = connection.read_line().await;
@@ -63,8 +77,8 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection)
         let command = from_string(raw_data);
         //3. process all the commands sequentially for now
         //todo: allow independent commands to progress in parallel
-            let data = db.data.clone();
-            let command_result = command.execute(data);
+            
+            let command_result = command.execute(&db);
             connection.stream.write(&command_result.into_bytes()).await.expect("could not send response");
         
     }

@@ -2,7 +2,8 @@ use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}};
 mod commands;
 mod expiry;
 use anyhow::{Context, Ok, Result, format_err};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream};
+use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream, select};
+use tokio_util::sync::CancellationToken;
 use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
     address: SocketAddr,
@@ -55,13 +56,21 @@ impl Connection {
 
 
 
-pub async fn connection_processor(db: Arc<Database>, mut connection: Connection) {
+pub async fn connection_processor(db: Arc<Database>, mut connection: Connection, cancellation_token: CancellationToken) {
     //spawned for each connection
     //run in a loop, read whatever data comes into a buffer
     let db = db.clone();
     loop {
         //1. read a line
-        let raw_data = connection.read_line().await;
+        //cancel called or line read, whiever happens early
+        let raw_data = select! {
+             raw_data = connection.read_line() => raw_data,
+             _ = cancellation_token.cancelled() => {
+                println!("cancellation wins, breaking");
+                break;
+             }
+
+        };
         if raw_data.len() == 0 {
             //break since connection closed, so this task will be completed
             break;

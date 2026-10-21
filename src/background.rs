@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use tokio::{spawn, time::{Instant, sleep}};
+use tokio::{signal, spawn, time::{Instant, sleep}};
+use tokio_util::sync::CancellationToken;
 use zyncdb::Database;
 
 pub async fn bg_sweeper(db: Arc<Database>) {
@@ -26,4 +27,11 @@ pub async fn field_delete(db: Arc<Database>, field: String) {
     //remove the entry from the sweeper context now
     db.remove_expiry(field);
     
+}
+
+pub async fn shutdown_listener(token: CancellationToken){
+    signal::ctrl_c().await.expect("error registering interest in ctrl + c, cannot setup graceful shutdown");
+    //once ctrl + c called, send a cancellation signal
+    println!("ctrl + c called!");
+    token.cancel();
 }

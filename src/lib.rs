@@ -1,8 +1,8 @@
-use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}};
+use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}, time::Duration};
 mod commands;
 mod expiry;
 use anyhow::{Context, Ok, Result, format_err};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream, select};
+use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream, select, time::sleep};
 use tokio_util::sync::CancellationToken;
 use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
@@ -65,6 +65,10 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection,
         //cancel called or line read, whiever happens early
         let raw_data = select! {
              raw_data = connection.read_line() => raw_data,
+             _ = sleep(Duration::from_secs(30)) => {
+                println!("read line operation timed out. Either no command arrived for too long or command was too slow to arrive fully");
+                break;
+             },
              _ = cancellation_token.cancelled() => {
                 println!("cancellation wins, breaking");
                 break;

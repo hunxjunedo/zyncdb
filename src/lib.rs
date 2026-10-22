@@ -74,8 +74,14 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection,
             //break since connection closed, so this task will be completed
             break;
         }
-        let raw_data = raw_data.unwrap().unwrap();
+        let raw_data = raw_data.unwrap();
+        //handle long line error
+        if raw_data.is_err() {
+            connection.framed.get_mut().write(&("command very large").to_string().into_bytes()).await.expect("could not send response");
+            continue;
+        };
         //2. parse the raw data
+        let raw_data = raw_data.unwrap();
         let command = from_string(raw_data);
         if let Some(err) = command.as_ref().err(){
             connection.framed.get_mut().write(&err.to_string().into_bytes()).await.expect("could not send response");

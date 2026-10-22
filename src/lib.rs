@@ -1,13 +1,14 @@
-use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, os::raw, sync::{Arc, Mutex}, time::Duration};
+use tokio_stream::{StreamExt};
 mod commands;
 mod expiry;
 use anyhow::{Context, Ok, Result, format_err};
-use tokio::{io::{AsyncBufReadExt, AsyncWriteExt, BufReader}, net::TcpStream, select, time::sleep};
-use tokio_util::sync::CancellationToken;
+use tokio::{io::{AsyncWriteExt}, net::TcpStream, select, time::sleep};
+use tokio_util::{codec::{Framed, LinesCodec}, sync::CancellationToken};
 use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
     address: SocketAddr,
-    reader: BufReader<TcpStream>
+    framed: Framed<TcpStream, LinesCodec>
 }
 
 type DbHandle = Arc<Mutex<HashMap<String, String>>>;
@@ -43,14 +44,7 @@ impl Database {
 
 impl Connection {
     pub fn new(connection_raw: (TcpStream, SocketAddr)) -> Self {
-        Self {  address: connection_raw.1, reader: BufReader::new(connection_raw.0) }
-    }
-
-    pub async fn read_line(&mut self) -> String {
-        let mut buf = String::new();
-        let bytes_read = self.reader.read_line(&mut buf).await.expect("could not read buffer data");
-        println!("a total of {} bytes were read from a connection", bytes_read);
-        buf
+        Self {  address: connection_raw.1, framed: Framed::new(connection_raw.0, LinesCodec::new_with_max_length(1000))}
     }
 }
 
@@ -61,10 +55,11 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection,
     //run in a loop, read whatever data comes into a buffer
     let db = db.clone();
     loop {
+        //todo: use decoder to return final command instead of string
         //1. read a line
         //cancel called or line read, whiever happens early
         let raw_data = select! {
-             raw_data = connection.read_line() => raw_data,
+             raw_data = connection.framed.next() => raw_data,
              _ = sleep(Duration::from_secs(30)) => {
                 println!("read line operation timed out. Either no command arrived for too long or command was too slow to arrive fully");
                 break;
@@ -75,14 +70,15 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection,
              }
 
         };
-        if raw_data.len() == 0 {
+        if raw_data.is_none() {
             //break since connection closed, so this task will be completed
             break;
         }
+        let raw_data = raw_data.unwrap().unwrap();
         //2. parse the raw data
         let command = from_string(raw_data);
         if let Some(err) = command.as_ref().err(){
-            connection.reader.get_mut().write(&err.to_string().into_bytes()).await.expect("could not send response");
+            connection.framed.get_mut().write(&err.to_string().into_bytes()).await.expect("could not send response");
             continue;
         }
         let command = command.unwrap();
@@ -90,7 +86,7 @@ pub async fn connection_processor(db: Arc<Database>, mut connection: Connection,
         //todo: allow independent commands to progress in parallel
             
             let command_result = command.execute(&db);
-            connection.reader.get_mut().write(&command_result.into_bytes()).await.expect("could not send response");
+            connection.framed.get_mut().write(&command_result.into_bytes()).await.expect("could not send response");
         
     }
 }

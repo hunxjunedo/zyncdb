@@ -1,7 +1,11 @@
-use std::{
-    collections::HashMap, env, net::SocketAddr, sync::{Arc, Mutex}, time::Duration,
-};
 use std::str::FromStr;
+use std::{
+    collections::HashMap,
+    env,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio_stream::StreamExt;
 mod commands;
 mod expiry;
@@ -10,13 +14,7 @@ use crate::{
     expiry::{Expiry, SweeperContext},
 };
 use anyhow::{Context, Ok, Result, format_err};
-use tokio::{
-    io::AsyncWriteExt,
-    net::TcpStream,
-    select,
-    sync::{OwnedSemaphorePermit},
-    time::sleep,
-};
+use tokio::{io::AsyncWriteExt, net::TcpStream, select, sync::OwnedSemaphorePermit, time::sleep};
 use tokio_util::{
     codec::{Framed, LinesCodec},
     sync::CancellationToken,
@@ -36,7 +34,10 @@ pub struct Database {
 }
 
 pub fn read_env_var<T: FromStr>(key: &str) -> T {
-    env::var(key).unwrap().parse::<T>().unwrap_or_else(|_| panic!("environment variable not defined or has invalid value"))
+    env::var(key)
+        .unwrap()
+        .parse::<T>()
+        .unwrap_or_else(|_| panic!("environment variable not defined or has invalid value"))
 }
 
 pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
@@ -82,7 +83,10 @@ impl Connection {
     pub fn new(connection_raw: (TcpStream, SocketAddr)) -> Self {
         Self {
             address: connection_raw.1,
-            framed: Framed::new(connection_raw.0, LinesCodec::new_with_max_length(read_env_var("MAX_COMMAND_LENGTH"))),
+            framed: Framed::new(
+                connection_raw.0,
+                LinesCodec::new_with_max_length(read_env_var("MAX_COMMAND_LENGTH")),
+            ),
         }
     }
 }

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+dotenv = "0.15.0"
 tokio = { version = "1.54.0", features = ["full"] }
 tokio-stream = "0.1.19"
 tokio-util = { version = "0.7.20", features = ["codec"] }

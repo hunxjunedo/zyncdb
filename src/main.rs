@@ -1,19 +1,21 @@
-use std::{sync::Arc};
+use std::{env, sync::Arc};
 mod background;
-use tokio::{ join, net::TcpListener, select, spawn, sync::{Semaphore, SemaphorePermit}, task::JoinHandle};
+use tokio::{ join, net::TcpListener, select, spawn, sync::{Semaphore}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use zyncdb::{Connection, Database, connection_processor};
+use zyncdb::{Connection, Database, connection_processor, read_env_var};
+use dotenv::dotenv;
 
 use crate::background::{bg_sweeper, shutdown_listener};
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     //bind socket to ip
     let listener = TcpListener::bind("127.0.0.1:8080").await.expect("error: could not the listener to the address");
     let main_db_instance = Arc::new(Database::new());
     //note: everytime a vec has to increase size, it doubles. remember might need for mem optimization
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
-    let semaphore = Arc::new(Semaphore::new(20000));
+    let semaphore = Arc::new(Semaphore::new(read_env_var("CONNECTION_LIMIT")));
     //spawn the bg tasks, like sweeper
     let token = CancellationToken::new();
     spawn(bg_sweeper(main_db_instance.clone()));
@@ -24,7 +26,6 @@ async fn main() {
             connection = listener.accept() => connection,
             _ = token.cancelled() => break
         }.expect("could not accept a connection");
-        println!("{}", semaphore.available_permits());
         //this will stop accepting connections once cancel is called
         let token = CancellationToken::clone(&token);
         let connection: Connection = Connection::new(connection);

@@ -2,14 +2,14 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::{signal, spawn, time::{Instant, sleep}};
 use tokio_util::sync::CancellationToken;
-use zyncdb::Database;
+use zyncdb::{Database, read_env_var};
 
 pub async fn bg_sweeper(db: Arc<Database>) {
     //responsible for checking the expiry 
     //todo: use channels instead of periodically polling
     
    loop {
-    sleep(Duration::from_secs(1)).await;
+    sleep(Duration::from_secs(read_env_var("SWEEPER_FREQUENCY"))).await;
     //wake up after atleast 1 secs everytime
     //check all the expiries
     db.sweeper_context.lock().unwrap().iter().filter(|(_, expiry)| {

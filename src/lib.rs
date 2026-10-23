@@ -6,9 +6,10 @@ use std::str::FromStr;
 use std::{
     env,
     net::SocketAddr,
-    sync::{Arc},
     time::Duration,
 };
+use tokio::sync::oneshot::channel;
+use tokio::sync::{oneshot, mpsc};
 use tokio_stream::StreamExt;
 use anyhow::{Context, Ok, Result, format_err};
 use tokio::{io::AsyncWriteExt, net::TcpStream, select, sync::OwnedSemaphorePermit, time::sleep};
@@ -66,6 +67,7 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
     }
 }
 
+pub type main_mpsc_channel_message = (oneshot::Sender<String>, Box<dyn Command + Send>);
 
 
 impl Connection {
@@ -81,14 +83,13 @@ impl Connection {
 }
 
 pub async fn connection_processor(
-    db: Arc<Database>,
     mut connection: Connection,
     cancellation_token: CancellationToken,
-    permit: OwnedSemaphorePermit,
+    _permit: OwnedSemaphorePermit,
+    multi_sender: mpsc::Sender<main_mpsc_channel_message>
 ) {
     //spawned for each connection
     //run in a loop, read whatever data comes into a buffer
-    let db = db.clone();
     loop {
         //todo: use decoder to return final command instead of string
         //1. read a line
@@ -136,7 +137,10 @@ pub async fn connection_processor(
         //3. process all the commands sequentially for now
         //todo: allow independent commands to progress in parallel
 
-        let command_result = command.execute(&db);
+        //now: start a one shot channel, and send it over with the command that needs to be executed
+        let (sender, reciever) = channel::<String>();
+        multi_sender.send((sender, command)).await;
+        let command_result = reciever.await.unwrap();
         connection
             .framed
             .get_mut()

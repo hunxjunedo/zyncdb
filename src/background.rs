@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::{
     signal, spawn,
-    time::{Instant, sleep},
+    time::{sleep},
 };
 use tokio_util::sync::CancellationToken;
 

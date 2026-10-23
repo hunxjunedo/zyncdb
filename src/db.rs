@@ -1,9 +1,11 @@
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 
-use crate::expiry::SweeperContext;
+use tokio::sync::mpsc::Receiver;
+
+use crate::{expiry::SweeperContext, main_mpsc_channel_message};
 
 
-type DbHandle = Arc<Mutex<HashMap<String, String>>>;
+pub type DbHandle = Arc<Mutex<HashMap<String, String>>>;
 
 #[derive(Default)]
 pub struct Database {
@@ -15,5 +17,13 @@ pub struct Database {
 impl Database {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+pub async fn db_worker(db: DbHandle, mut multi_reciever: Receiver<main_mpsc_channel_message>) {
+    loop {
+        let (sender, command) = multi_reciever.recv().await.unwrap();
+        let command_result = command.execute(&db);
+        sender.send(command_result);
     }
 }

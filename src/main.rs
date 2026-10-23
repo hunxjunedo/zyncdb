@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use zyncdb::{db, background};
+use zyncdb::{background, db::{self, db_worker}, main_mpsc_channel_message};
 use dotenv::dotenv;
-use tokio::{net::TcpListener, select, spawn, sync::Semaphore, task::JoinHandle};
+use tokio::{net::TcpListener, select, spawn, sync::{Semaphore, mpsc}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zyncdb::{Connection, connection_processor, read_env_var};
 
@@ -20,10 +20,12 @@ async fn main() {
     let semaphore = Arc::new(Semaphore::new(read_env_var("CONNECTION_LIMIT")));
     let token = CancellationToken::new();
 
-
+    let (multi_sender, single_consumer) = mpsc::channel::<main_mpsc_channel_message>(100);
     //spawn the bg tasks, like sweeper
+    spawn(db_worker(main_db_instance.clone().data.clone(), single_consumer));
     spawn(bg_sweeper(main_db_instance.clone()));
     spawn(shutdown_listener(token.clone()));
+
 
 
     loop {
@@ -36,15 +38,14 @@ async fn main() {
         //this will stop accepting connections once cancel is called
         let token = CancellationToken::clone(&token);
         let connection: Connection = Connection::new(connection);
-        let main_db_instance = Arc::clone(&main_db_instance);
         //attempt to acquire the semaphore here: if its ready you spawn the task, if not you don't accept any more connections
         //ordinary semaphorepermit borrows semaphore. so can't.
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let handle = spawn(connection_processor(
-            main_db_instance,
             connection,
             token,
             permit,
+            multi_sender.clone()
         ));
         handles.push(handle);
     }

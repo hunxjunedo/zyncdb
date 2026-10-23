@@ -20,7 +20,7 @@ pub async fn bg_sweeper(db: Arc<Database>) {
             .lock()
             .unwrap()
             .iter()
-            .filter(|(_, expiry)| (Instant::now() - expiry.now) >= Duration::from_secs(expiry.ttl))
+            .filter(|(_, expiry)| expiry.now.elapsed() >= Duration::from_secs(expiry.ttl))
             .for_each(|(field, _)| {
                 //spawn an async task, allow to extend in the future
                 let db_to_pass = db.clone();

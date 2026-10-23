@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use crate::{Database, Expiry};
+use crate::{db::Database, expiry::Expiry};
+
 
 pub trait Command {
     fn execute(&self, db: &Arc<Database>) -> String;

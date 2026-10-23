@@ -1,11 +1,11 @@
 use std::sync::Arc;
-mod background;
+use zyncdb::{db, background};
 use dotenv::dotenv;
 use tokio::{net::TcpListener, select, spawn, sync::Semaphore, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use zyncdb::{Connection, Database, connection_processor, read_env_var};
+use zyncdb::{Connection, connection_processor, read_env_var};
 
-use crate::background::{bg_sweeper, shutdown_listener};
+use crate::{background::{bg_sweeper, shutdown_listener}, db::Database};
 
 #[tokio::main]
 async fn main() {
@@ -18,10 +18,14 @@ async fn main() {
     //note: everytime a vec has to increase size, it doubles. remember might need for mem optimization
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     let semaphore = Arc::new(Semaphore::new(read_env_var("CONNECTION_LIMIT")));
-    //spawn the bg tasks, like sweeper
     let token = CancellationToken::new();
+
+
+    //spawn the bg tasks, like sweeper
     spawn(bg_sweeper(main_db_instance.clone()));
     spawn(shutdown_listener(token.clone()));
+
+
     loop {
         //accept the incoming connections, one at a time
         let connection = select! {

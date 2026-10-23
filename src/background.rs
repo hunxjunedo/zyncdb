@@ -5,7 +5,8 @@ use tokio::{
     time::{Instant, sleep},
 };
 use tokio_util::sync::CancellationToken;
-use zyncdb::{Database, read_env_var};
+
+use crate::{db::Database, read_env_var};
 
 pub async fn bg_sweeper(db: Arc<Database>) {
     //responsible for checking the expiry

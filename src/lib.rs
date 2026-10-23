@@ -1,37 +1,30 @@
+pub mod db;
+pub mod commands;
+pub mod expiry;
+pub mod background;
 use std::str::FromStr;
 use std::{
-    collections::HashMap,
     env,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{Arc},
     time::Duration,
 };
 use tokio_stream::StreamExt;
-mod commands;
-mod expiry;
-use crate::{
-    commands::{Command, Del, Expire, Get, Set},
-    expiry::{Expiry, SweeperContext},
-};
 use anyhow::{Context, Ok, Result, format_err};
 use tokio::{io::AsyncWriteExt, net::TcpStream, select, sync::OwnedSemaphorePermit, time::sleep};
 use tokio_util::{
     codec::{Framed, LinesCodec},
     sync::CancellationToken,
 };
+
+use crate::commands::{Command, Get, Set, Del, Expire};
+use crate::db::Database;
 pub struct Connection {
     address: SocketAddr,
     framed: Framed<TcpStream, LinesCodec>,
 }
 
-type DbHandle = Arc<Mutex<HashMap<String, String>>>;
 
-#[derive(Default)]
-pub struct Database {
-    //todo: allow non string
-    pub data: DbHandle,
-    pub sweeper_context: SweeperContext,
-}
 
 pub fn read_env_var<T: FromStr>(key: &str) -> T {
     env::var(key)
@@ -73,11 +66,7 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
     }
 }
 
-impl Database {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
+
 
 impl Connection {
     pub fn new(connection_raw: (TcpStream, SocketAddr)) -> Self {

@@ -1,6 +1,6 @@
 use std::{sync::Arc};
 mod background;
-use tokio::{ join, net::TcpListener, select, spawn, task::JoinHandle};
+use tokio::{ join, net::TcpListener, select, spawn, sync::{Semaphore, SemaphorePermit}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zyncdb::{Connection, Database, connection_processor};
 
@@ -13,6 +13,7 @@ async fn main() {
     let main_db_instance = Arc::new(Database::new());
     //note: everytime a vec has to increase size, it doubles. remember might need for mem optimization
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
+    let semaphore = Arc::new(Semaphore::new(20000));
     //spawn the bg tasks, like sweeper
     let token = CancellationToken::new();
     spawn(bg_sweeper(main_db_instance.clone()));
@@ -23,11 +24,15 @@ async fn main() {
             connection = listener.accept() => connection,
             _ = token.cancelled() => break
         }.expect("could not accept a connection");
+        println!("{}", semaphore.available_permits());
         //this will stop accepting connections once cancel is called
         let token = CancellationToken::clone(&token);
         let connection: Connection = Connection::new(connection);
         let main_db_instance = Arc::clone(&main_db_instance);
-        let handle = spawn(connection_processor(main_db_instance, connection, token));
+        //attempt to acquire the semaphore here: if its ready you spawn the task, if not you don't accept any more connections
+        //ordinary semaphorepermit borrows semaphore. so can't.
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let handle = spawn(connection_processor(main_db_instance, connection, token, permit));
         handles.push(handle);
         
     }

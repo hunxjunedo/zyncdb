@@ -3,7 +3,7 @@ use tokio_stream::{StreamExt};
 mod commands;
 mod expiry;
 use anyhow::{Context, Ok, Result, format_err};
-use tokio::{io::{AsyncWriteExt}, net::TcpStream, select, time::sleep};
+use tokio::{io::AsyncWriteExt, net::TcpStream, select, sync::{OwnedSemaphorePermit, SemaphorePermit}, time::sleep};
 use tokio_util::{codec::{Framed, LinesCodec}, sync::CancellationToken};
 use crate::{commands::{Command, Del, Expire, Get, Set}, expiry::{Expiry, SweeperContext}};
 pub struct Connection {
@@ -50,7 +50,7 @@ impl Connection {
 
 
 
-pub async fn connection_processor(db: Arc<Database>, mut connection: Connection, cancellation_token: CancellationToken) {
+pub async fn connection_processor(db: Arc<Database>, mut connection: Connection, cancellation_token: CancellationToken, permit: OwnedSemaphorePermit) {
     //spawned for each connection
     //run in a loop, read whatever data comes into a buffer
     let db = db.clone();

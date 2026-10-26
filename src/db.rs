@@ -2,7 +2,7 @@ use std::{collections::HashMap};
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::{expiry::SweeperContext, main_mpsc_channel_message};
+use crate::{expiry::SweeperContext, MainMpscChannelMessage};
 
 
 pub type DbHandle = HashMap<String, String>;
@@ -20,10 +20,12 @@ impl Database {
     }
 }
 
-pub async fn db_worker(mut db: DbHandle, mut multi_reciever: Receiver<main_mpsc_channel_message>) {
+pub async fn db_worker(mut db: Database, mut multi_reciever: Receiver<MainMpscChannelMessage>) {
     loop {
         let (sender, command) = multi_reciever.recv().await.unwrap();
         let command_result = command.execute(&mut db);
-        sender.send(command_result);
+        if let Some(sender) = sender {
+            sender.send(command_result);
+        }
     }
 }

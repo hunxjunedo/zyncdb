@@ -31,15 +31,15 @@ pub trait DbOperation {
 }
 
 pub struct GetKey {
-    key: String,
+    pub key: String,
 }
 pub struct SetKey {
-    key: String,
-    value: String,
+    pub key: String,
+    pub value: String,
 }
 pub struct SetEvictionPolicy {
-    key: String,
-    ttl: u64,
+    pub key: String,
+    pub ttl: u64,
 }
 pub struct RemoveKey {
     pub key: String,

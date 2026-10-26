@@ -1,7 +1,9 @@
 pub mod db;
 pub mod commands;
 pub mod expiry;
+pub mod db_operations;
 pub mod background;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::{
     env,
@@ -67,7 +69,13 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
     }
 }
 
-pub type main_mpsc_channel_message = (oneshot::Sender<String>, Box<dyn Command + Send>);
+enum ResponseFromDbOp {
+    Data(HashMap<String, String>),
+    SweeperData(HashMap<String, Expire>),
+    NormalResponse(String)
+}
+type ResponseSender = oneshot::Sender<ResponseFromDbOp>;
+pub type MainMpscChannelMessage = (ResponseSender, Box<dyn Command + Send>);
 
 
 impl Connection {
@@ -86,7 +94,7 @@ pub async fn connection_processor(
     mut connection: Connection,
     cancellation_token: CancellationToken,
     _permit: OwnedSemaphorePermit,
-    multi_sender: mpsc::Sender<main_mpsc_channel_message>
+    multi_sender: mpsc::Sender<MainMpscChannelMessage>
 ) {
     //spawned for each connection
     //run in a loop, read whatever data comes into a buffer

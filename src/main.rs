@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use zyncdb::{background, db::{self, db_worker}, main_mpsc_channel_message};
+use zyncdb::{background, db::{self, db_worker}, MainMpscChannelMessage};
 use dotenv::dotenv;
 use tokio::{net::TcpListener, select, spawn, sync::{Semaphore, mpsc}, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -20,7 +20,7 @@ async fn main() {
     let semaphore = Arc::new(Semaphore::new(read_env_var("CONNECTION_LIMIT")));
     let token = CancellationToken::new();
 
-    let (multi_sender, single_consumer) = mpsc::channel::<main_mpsc_channel_message>(100);
+    let (multi_sender, single_consumer) = mpsc::channel::<MainMpscChannelMessage>(100);
     //spawn the bg tasks, like sweeper
     spawn(db_worker(main_db_instance.clone().data.clone(), single_consumer));
     spawn(bg_sweeper(main_db_instance.clone()));

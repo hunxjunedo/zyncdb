@@ -42,7 +42,7 @@ pub struct SetEvictionPolicy {
     ttl: u64,
 }
 pub struct RemoveKey {
-    key: String,
+    pub key: String,
 }
 
 impl DbOperation for GetKey {
@@ -91,12 +91,12 @@ impl DbOperation for RemoveKey {
 }
 
 pub struct FilterKeysInData {
-    predicate: Box<dyn Fn((&String, &String)) -> bool>,
+    predicate: Box<dyn Fn((&String, &String)) -> bool + Send>,
 }
 
 
 pub struct FilterKeysInSweeperContext {
-    pub predicate: Box<dyn Fn((&String, &Expiry)) -> bool>,
+    pub predicate: Box<dyn Fn((&String, &Expiry)) -> bool + Send>,
 }
 
 

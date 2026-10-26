@@ -14,14 +14,20 @@
 
 //concern: atomicity of user-facing commands. What if Command A executes some db operations between the db operation of Command B.
 
+use std::{
+    collections::HashMap,
+    hash::{BuildHasher, Hash},
+    iter::Filter,
+};
+
 use tokio::time::Instant;
 
 use crate::{db::Database, expiry::Expiry};
 
 //FOLLOWING ARE THE COMMANDS THAT WILL BE SENT OVER CHANNEL TO THE SINGLE DB ACTOR.
 //NO MUTEXES, NO LOCKS, NO ARCS
-pub trait DbOperation {
-    fn execute(&self, db: &mut Database) -> String;
+pub trait DbOperation<T> {
+    fn execute(&self, db: &mut Database) -> T;
 }
 
 pub struct GetKey {
@@ -39,7 +45,7 @@ pub struct RemoveKey {
     key: String,
 }
 
-impl DbOperation for GetKey {
+impl DbOperation<String> for GetKey {
     fn execute(&self, db: &mut Database) -> String {
         match db.data.get(&self.key) {
             Some(value) => value.to_owned(),
@@ -48,7 +54,7 @@ impl DbOperation for GetKey {
     }
 }
 
-impl DbOperation for SetKey {
+impl DbOperation<String> for SetKey {
     fn execute(&self, db: &mut Database) -> String {
         match db.data.insert(self.key.clone(), self.value.clone()) {
             Some(_) => "Value update".to_string(),
@@ -57,7 +63,7 @@ impl DbOperation for SetKey {
     }
 }
 
-impl DbOperation for SetEvictionPolicy {
+impl DbOperation<String> for SetEvictionPolicy {
     fn execute(&self, db: &mut Database) -> String {
         let expiry = Expiry {
             ttl: self.ttl,
@@ -71,16 +77,36 @@ impl DbOperation for SetEvictionPolicy {
     }
 }
 
-impl DbOperation for RemoveKey {
+impl DbOperation<String> for RemoveKey {
     fn execute(&self, db: &mut Database) -> String {
         let did_not_exist = db.data.remove(&self.key).is_none();
         //remove the entry from the sweeper context now
         db.remove_expiry(self.key.clone());
         if did_not_exist {
             String::from("the key did not exist")
-        }else {
+        } else {
             String::from("key removed succesfully")
         }
+    }
+}
+
+pub struct FilterKeysInData {
+    predicate: Box<dyn Fn((&String, &String)) -> bool>,
+}
+
+
+pub struct FilterKeysInSweeperContext {
+    predicate: Box<dyn Fn((&String, &Expiry)) -> bool>,
+}
+
+
+impl DbOperation<HashMap<String, Expiry>> for FilterKeysInSweeperContext {
+    fn execute(&self, db: &mut Database) -> HashMap<String, Expiry> {
+        db.sweeper_context
+            .iter()
+            .filter(|(k, v)|(self.predicate)((k, v)))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
 }
 

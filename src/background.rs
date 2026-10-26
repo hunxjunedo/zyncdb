@@ -20,7 +20,7 @@ pub async fn bg_sweeper(multi_sender: mpsc::Sender<MainMpscChannelMessage>) {
             predicate
         };
         let command: Box<dyn DbOperation + Send> = Box::from(command);
-        multi_sender.send((tx.into(), command));
+        multi_sender.send((tx.into(), command)).await;
 
         //now wait
         match rc.await.unwrap() {

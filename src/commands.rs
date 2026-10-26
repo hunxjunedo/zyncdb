@@ -2,12 +2,17 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use crate::{db::{Database, DbHandle}, expiry::Expiry};
+use crate::{db::{Database, DbHandle}, db_operations::{DbOperation, GetKey, RemoveKey, SetEvictionPolicy, SetKey}};
 
 
+//the user facing commands
+//for now just make them return a db command, until we get to more complex commands.
+//todo: make Command recieve the multi-sender, so that it has more control.
 pub trait Command {
-    fn execute(&self, db_data: &mut DbHandle) -> String;
+    fn execute(&self) -> DbOp;
 }
+
+type DbOp = Box<dyn DbOperation + Send>;
 
 pub struct Get {
     pub field: String,
@@ -21,30 +26,19 @@ pub struct Del {
 }
 
 impl Command for Get {
-    fn execute(&self, db_data: &mut DbHandle) -> String {
-        match db_data.get(&self.field) {
-            Some(value) => value.to_owned(),
-            None => "Value does not exist!".to_string(),
-        }
+    fn execute(&self) -> DbOp {
+        Box::from(GetKey{key: self.field.clone()})
     }
 }
 
 impl Command for Set {
-    fn execute(&self, db_data: &mut DbHandle) -> String {
-        match db_data
-            .insert(self.field.clone(), self.data.clone())
-        {
-            Some(_) => "Value update".to_string(),
-            None => "Field did not exist, but created it".to_string(),
-        }
+    fn execute(&self) -> DbOp {
+        Box::from(SetKey{key: self.field.clone(), value: self.data.clone()})
     }
 }
 impl Command for Del {
-    fn execute(&self, db_data: &mut DbHandle) -> String {
-        match db_data.remove(&self.field) {
-            Some(_) => "Field Succesfully Removed".to_string(),
-            None => "Field does not exist!".to_string(),
-        }
+    fn execute(&self) -> DbOp {
+        Box::from(RemoveKey{key: self.field.clone()})
     }
 }
 
@@ -54,16 +48,7 @@ pub struct Expire {
 }
 
 impl Command for Expire {
-    fn execute(&self, db_data: &mut DbHandle) -> String {
-        // let expiry = Expiry {
-        //     ttl: self.ttl,
-        //     now: Instant::now(),
-        // };
-        // if db_data.set_expiry(self.field.clone(), expiry) {
-        //     String::from("TTL added")
-        // } else {
-        //     String::from("TTL updated")
-        // }
-        String::from("sup")
+    fn execute(&self) -> DbOp {
+        Box::from(SetEvictionPolicy{key: self.field.clone(), ttl: self.ttl.clone()})
     }
 }

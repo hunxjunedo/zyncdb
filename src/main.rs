@@ -14,7 +14,7 @@ async fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080")
         .await
         .expect("error: could not the listener to the address");
-    let main_db_instance = Arc::new(Database::new());
+    let main_db_instance = Database::new();
     //note: everytime a vec has to increase size, it doubles. remember might need for mem optimization
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     let semaphore = Arc::new(Semaphore::new(read_env_var("CONNECTION_LIMIT")));
@@ -22,8 +22,8 @@ async fn main() {
 
     let (multi_sender, single_consumer) = mpsc::channel::<MainMpscChannelMessage>(100);
     //spawn the bg tasks, like sweeper
-    spawn(db_worker(main_db_instance.clone().data.clone(), single_consumer));
-    spawn(bg_sweeper(main_db_instance.clone()));
+    spawn(db_worker(main_db_instance, single_consumer));
+    spawn(bg_sweeper(multi_sender));
     spawn(shutdown_listener(token.clone()));
 
 

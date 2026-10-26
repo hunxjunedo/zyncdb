@@ -22,6 +22,8 @@ use tokio_util::{
 
 use crate::commands::{Command, Get, Set, Del, Expire};
 use crate::db::Database;
+use crate::db_operations::DbOperation;
+use crate::expiry::Expiry;
 pub struct Connection {
     address: SocketAddr,
     framed: Framed<TcpStream, LinesCodec>,
@@ -71,11 +73,11 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
 
 enum ResponseFromDbOp {
     Data(HashMap<String, String>),
-    SweeperData(HashMap<String, Expire>),
+    SweeperData(HashMap<String, Expiry>),
     NormalResponse(String)
 }
 type ResponseSender = oneshot::Sender<ResponseFromDbOp>;
-pub type MainMpscChannelMessage = (ResponseSender, Box<dyn Command + Send>);
+pub type MainMpscChannelMessage = (ResponseSender, Box<dyn DbOperation + Send>);
 
 
 impl Connection {

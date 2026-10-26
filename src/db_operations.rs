@@ -22,12 +22,12 @@ use std::{
 
 use tokio::time::Instant;
 
-use crate::{db::Database, expiry::Expiry};
+use crate::{ResponseFromDbOp, db::Database, expiry::Expiry};
 
 //FOLLOWING ARE THE COMMANDS THAT WILL BE SENT OVER CHANNEL TO THE SINGLE DB ACTOR.
 //NO MUTEXES, NO LOCKS, NO ARCS
-pub trait DbOperation<T> {
-    fn execute(&self, db: &mut Database) -> T;
+pub trait DbOperation {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp;
 }
 
 pub struct GetKey {
@@ -45,47 +45,47 @@ pub struct RemoveKey {
     key: String,
 }
 
-impl DbOperation<String> for GetKey {
-    fn execute(&self, db: &mut Database) -> String {
-        match db.data.get(&self.key) {
+impl DbOperation for GetKey {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
+        ResponseFromDbOp::NormalResponse(match db.data.get(&self.key) {
             Some(value) => value.to_owned(),
             None => "Value does not exist!".to_string(),
-        }
+        })
     }
 }
 
-impl DbOperation<String> for SetKey {
-    fn execute(&self, db: &mut Database) -> String {
-        match db.data.insert(self.key.clone(), self.value.clone()) {
+impl DbOperation for SetKey {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
+        ResponseFromDbOp::NormalResponse(match db.data.insert(self.key.clone(), self.value.clone()) {
             Some(_) => "Value update".to_string(),
             None => "Field did not exist, but created it".to_string(),
-        }
+        })
     }
 }
 
-impl DbOperation<String> for SetEvictionPolicy {
-    fn execute(&self, db: &mut Database) -> String {
+impl DbOperation for SetEvictionPolicy {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         let expiry = Expiry {
             ttl: self.ttl,
             now: Instant::now(),
         };
         if db.set_expiry(self.key.clone(), expiry) {
-            String::from("TTL added")
+            ResponseFromDbOp::NormalResponse(String::from("TTL added"))
         } else {
-            String::from("TTL updated")
+            ResponseFromDbOp::NormalResponse(String::from("TTL updated"))
         }
     }
 }
 
-impl DbOperation<String> for RemoveKey {
-    fn execute(&self, db: &mut Database) -> String {
+impl DbOperation for RemoveKey {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         let did_not_exist = db.data.remove(&self.key).is_none();
         //remove the entry from the sweeper context now
         db.remove_expiry(self.key.clone());
         if did_not_exist {
-            String::from("the key did not exist")
+            ResponseFromDbOp::NormalResponse(String::from("the key did not exist"))
         } else {
-            String::from("key removed succesfully")
+            ResponseFromDbOp::NormalResponse(String::from("key removed succesfully"))
         }
     }
 }
@@ -96,17 +96,19 @@ pub struct FilterKeysInData {
 
 
 pub struct FilterKeysInSweeperContext {
-    predicate: Box<dyn Fn((&String, &Expiry)) -> bool>,
+    pub predicate: Box<dyn Fn((&String, &Expiry)) -> bool>,
 }
 
 
-impl DbOperation<HashMap<String, Expiry>> for FilterKeysInSweeperContext {
-    fn execute(&self, db: &mut Database) -> HashMap<String, Expiry> {
-        db.sweeper_context
+impl DbOperation for FilterKeysInSweeperContext {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
+        ResponseFromDbOp::SweeperData(
+            db.sweeper_context
             .iter()
             .filter(|(k, v)|(self.predicate)((k, v)))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect()
+        )
     }
 }
 

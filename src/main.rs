@@ -23,7 +23,7 @@ async fn main() {
     let (multi_sender, single_consumer) = mpsc::channel::<MainMpscChannelMessage>(100);
     //spawn the bg tasks, like sweeper
     spawn(db_worker(main_db_instance, single_consumer));
-    spawn(bg_sweeper(multi_sender));
+    spawn(bg_sweeper(multi_sender.clone()));
     spawn(shutdown_listener(token.clone()));
 
 

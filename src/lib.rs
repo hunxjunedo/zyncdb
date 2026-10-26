@@ -71,13 +71,13 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
     }
 }
 
-enum ResponseFromDbOp {
+pub enum ResponseFromDbOp {
     Data(HashMap<String, String>),
     SweeperData(HashMap<String, Expiry>),
     NormalResponse(String)
 }
 type ResponseSender = oneshot::Sender<ResponseFromDbOp>;
-pub type MainMpscChannelMessage = (ResponseSender, Box<dyn DbOperation + Send>);
+pub type MainMpscChannelMessage = (Option<ResponseSender>, Box<dyn DbOperation + Send>);
 
 
 impl Connection {
@@ -143,19 +143,22 @@ pub async fn connection_processor(
                 .expect("could not send response");
             continue;
         }
-        let command = command.unwrap();
+        let command = command.unwrap().execute(); //.execute() returns db_operation for now
         //3. process all the commands sequentially for now
         //todo: allow independent commands to progress in parallel
 
         //now: start a one shot channel, and send it over with the command that needs to be executed
-        let (sender, reciever) = channel::<String>();
-        multi_sender.send((sender, command)).await;
+        let (sender, reciever) = channel::<ResponseFromDbOp>();
+        multi_sender.send((Some(sender), command)).await;
         let command_result = reciever.await.unwrap();
-        connection
+        if let ResponseFromDbOp::NormalResponse(command_result) = command_result{
+                  connection
             .framed
             .get_mut()
             .write(&command_result.into_bytes())
             .await
             .expect("could not send response");
+        }
+  
     }
 }

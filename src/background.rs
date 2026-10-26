@@ -20,6 +20,7 @@ pub async fn bg_sweeper(multi_sender: mpsc::Sender<MainMpscChannelMessage>) {
             predicate
         };
         let command: Box<dyn DbOperation + Send> = Box::from(command);
+        //no await means no use of the future. which means the future is dropped, which means all the data it has, including the sender, is dropped. which would close the channel.
         multi_sender.send((tx.into(), command)).await;
 
         //now wait

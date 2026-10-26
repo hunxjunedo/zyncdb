@@ -9,6 +9,8 @@ use crate::{MainMpscChannelMessage, ResponseFromDbOp,  db_operations::{DbOperati
 pub async fn bg_sweeper(multi_sender: mpsc::Sender<MainMpscChannelMessage>) {
     //responsible for checking the expiry
     //todo: use channels instead of periodically polling
+    //todo: fix the race condition this causes
+    //todo: update expiry when a new set occurs 
 
     loop {
         sleep(Duration::from_secs(read_env_var("SWEEPER_FREQUENCY"))).await;

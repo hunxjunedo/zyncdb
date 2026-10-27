@@ -154,7 +154,7 @@ pub async fn connection_processor(
                   connection
             .framed
             .get_mut()
-            .write(&command_result.into_bytes())
+            .write(&(command_result + "\n").into_bytes())
             .await
             .expect("could not send response");
         }

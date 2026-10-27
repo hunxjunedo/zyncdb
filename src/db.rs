@@ -2,16 +2,16 @@ use std::{collections::HashMap};
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::{expiry::SweeperContext, MainMpscChannelMessage};
+use crate::{MainMpscChannelMessage, expiry::{Expiry, SweeperContext}};
 
 
-pub type DbHandle = HashMap<String, String>;
+pub type DbHandle = HashMap<String, Entry>;
+pub type Entry = ( String,  Option<Expiry>);
 
 #[derive(Default)]
 pub struct Database {
     //todo: allow non string
     pub data: DbHandle,
-    pub sweeper_context: SweeperContext,
 }
 
 impl Database {

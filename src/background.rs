@@ -4,40 +4,22 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{MainMpscChannelMessage, ResponseFromDbOp,  db_operations::{DbOperation, FilterKeysInSweeperContext, RemoveKey}, expiry::Expiry, read_env_var};
+use crate::{MainMpscChannelMessage, ResponseFromDbOp, db_operations::{DbOperation, RemoveExpiredKeys, RemoveKey}, expiry::Expiry, read_env_var};
 
 pub async fn bg_sweeper(multi_sender: mpsc::Sender<MainMpscChannelMessage>) {
     //responsible for checking the expiry
     //todo: use channels instead of periodically polling
-    //todo: fix the race condition this causes
+    //todo: fix the race condition this causes DONE
     //todo: update expiry when a new set occurs 
 
     loop {
         sleep(Duration::from_secs(read_env_var("SWEEPER_FREQUENCY"))).await;
-        //wake up after atleast 1 secs everytime
-        //check all the expiries
-        let (tx, rc) = oneshot::channel();
-        let predicate: Box<dyn Fn((&String, &Expiry)) -> bool + Send> = Box::from(|(_, expiry): (&String, &Expiry)| expiry.now.elapsed() >= Duration::from_secs(expiry.ttl));
-        let command =   FilterKeysInSweeperContext{
-            predicate
+        let (tx, rc) = oneshot::channel::<ResponseFromDbOp>();
+        _ = multi_sender.send((tx.into(), Box::new(RemoveExpiredKeys{}))).await;
+        let response = rc.await.unwrap();
+        if let ResponseFromDbOp::NormalResponse(resp) = response {
+            println!("{}", resp);
         };
-        let command: Box<dyn DbOperation + Send> = Box::from(command);
-        //no await means no use of the future. which means the future is dropped, which means all the data it has, including the sender, is dropped. which would close the channel.
-        multi_sender.send((tx.into(), command)).await;
-
-        //now wait
-        match rc.await.unwrap() {
-            ResponseFromDbOp::SweeperData(hashmap) => {
-                hashmap.iter().for_each(|(field, _)| {
-                //delete the key
-                //form the delete command
-                let command = Box::new(RemoveKey{key: field.clone()});
-                multi_sender.send((None, command));
-            });
-            },
-            _ => {},
-        }
-            
     }
 }
 

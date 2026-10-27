@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use crate::{db::{Database, DbHandle}, db_operations::{DbOperation, GetKey, RemoveKey, SetEvictionPolicy, SetKey}};
+use crate::{db::{Database, DbHandle}, db_operations::{DbOperation, GetKey, RemoveKey, SetEvictionPolicy, SetKey}, expiry};
 
 
 //the user facing commands
@@ -20,6 +20,7 @@ pub struct Get {
 pub struct Set {
     pub field: String,
     pub data: String,
+    pub ttl: Option<u64>
 }
 pub struct Del {
     pub field: String,
@@ -33,7 +34,7 @@ impl Command for Get {
 
 impl Command for Set {
     fn execute(&self) -> DbOp {
-        Box::from(SetKey{key: self.field.clone(), value: self.data.clone()})
+        Box::from(SetKey{key: self.field.clone(), value: self.data.clone(), ttl: self.ttl})
     }
 }
 impl Command for Del {

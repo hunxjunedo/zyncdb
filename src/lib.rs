@@ -21,9 +21,8 @@ use tokio_util::{
 };
 
 use crate::commands::{Command, Get, Set, Del, Expire};
-use crate::db::Database;
+use crate::db::{Database, Entry};
 use crate::db_operations::DbOperation;
-use crate::expiry::Expiry;
 pub struct Connection {
     address: SocketAddr,
     framed: Framed<TcpStream, LinesCodec>,
@@ -52,6 +51,7 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
             return Ok(Box::new(Set {
                 field: commands_chunks[1].to_string(),
                 data: commands_chunks[2].to_string(),
+                ttl: commands_chunks[3].parse::<u64>().map_or(None, |v|Some(v))
             }));
         }
         "DEL" => {
@@ -72,8 +72,7 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
 }
 
 pub enum ResponseFromDbOp {
-    Data(HashMap<String, String>),
-    SweeperData(HashMap<String, Expiry>),
+    Data(HashMap<String, Entry>),
     NormalResponse(String)
 }
 type ResponseSender = oneshot::Sender<ResponseFromDbOp>;

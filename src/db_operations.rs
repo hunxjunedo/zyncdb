@@ -15,14 +15,12 @@
 //concern: atomicity of user-facing commands. What if Command A executes some db operations between the db operation of Command B.
 
 use std::{
-    collections::HashMap,
-    hash::{BuildHasher, Hash},
-    iter::Filter,
+    collections::HashMap, f32::consts::E, fmt::format, hash::{BuildHasher, Hash}, iter::Filter, time::Duration,
 };
 
 use tokio::time::Instant;
 
-use crate::{ResponseFromDbOp, db::Database, expiry::Expiry};
+use crate::{ResponseFromDbOp, db::{Database, Entry}, expiry::{self, Expiry}};
 
 //FOLLOWING ARE THE COMMANDS THAT WILL BE SENT OVER CHANNEL TO THE SINGLE DB ACTOR.
 //NO MUTEXES, NO LOCKS, NO ARCS
@@ -36,6 +34,7 @@ pub struct GetKey {
 pub struct SetKey {
     pub key: String,
     pub value: String,
+    pub ttl: Option<u64>
 }
 pub struct SetEvictionPolicy {
     pub key: String,
@@ -45,10 +44,24 @@ pub struct RemoveKey {
     pub key: String,
 }
 
+pub struct RemoveExpiredKeys {}
+
+impl DbOperation for RemoveExpiredKeys {
+    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
+        //scan all the expired keys and remove them
+        let keys_to_remove = db.get_expired_keys(100);
+        keys_to_remove.iter().for_each(|key|{
+            let command = RemoveKey {key: key.clone()};
+            command.execute(db);
+        });
+        return ResponseFromDbOp::NormalResponse(format!("cleared expired keys up to {}", keys_to_remove.len()))
+    }
+}
+
 impl DbOperation for GetKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         ResponseFromDbOp::NormalResponse(match db.data.get(&self.key) {
-            Some(value) => value.to_owned(),
+            Some(value) => value.to_owned().0,
             None => "Value does not exist!".to_string(),
         })
     }
@@ -56,7 +69,12 @@ impl DbOperation for GetKey {
 
 impl DbOperation for SetKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
-        ResponseFromDbOp::NormalResponse(match db.data.insert(self.key.clone(), self.value.clone()) {
+        //no expiry when 
+        let mut expiry = None;
+        if let Some(ttl) = self.ttl {
+            expiry = Some(Expiry { ttl, now: Instant::now() })
+        }
+        ResponseFromDbOp::NormalResponse(match db.data.insert(self.key.clone(), (self.value.clone(), expiry)) {
             Some(_) => "Value update".to_string(),
             None => "Field did not exist, but created it".to_string(),
         })
@@ -81,7 +99,7 @@ impl DbOperation for RemoveKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         let did_not_exist = db.data.remove(&self.key).is_none();
         //remove the entry from the sweeper context now
-        db.remove_expiry(self.key.clone());
+        // db.remove_expiry(self.key.clone());
         if did_not_exist {
             ResponseFromDbOp::NormalResponse(String::from("the key did not exist"))
         } else {
@@ -91,20 +109,17 @@ impl DbOperation for RemoveKey {
 }
 
 pub struct FilterKeysInData {
-    predicate: Box<dyn Fn((&String, &String)) -> bool + Send>,
+    predicate: Box<dyn Fn((&String, &Entry)) -> bool + Send>,
+    limit: Option<usize>
 }
 
 
-pub struct FilterKeysInSweeperContext {
-    pub predicate: Box<dyn Fn((&String, &Expiry)) -> bool + Send>,
-}
-
-
-impl DbOperation for FilterKeysInSweeperContext {
+impl DbOperation for FilterKeysInData {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
-        ResponseFromDbOp::SweeperData(
-            db.sweeper_context
+        ResponseFromDbOp::Data(
+            db.data
             .iter()
+            .take(self.limit.unwrap_or(usize::MAX))
             .filter(|(k, v)|(self.predicate)((k, v)))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect()

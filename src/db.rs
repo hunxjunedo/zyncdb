@@ -2,7 +2,7 @@ use std::{collections::HashMap};
 
 use tokio::sync::mpsc::Receiver;
 
-use crate::{MainMpscChannelMessage, expiry::{Expiry, SweeperContext}};
+use crate::{MainMpscChannelMessage, expiry::{Expiry}};
 
 
 pub type DbHandle = HashMap<String, Entry>;

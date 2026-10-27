@@ -2,15 +2,13 @@ use std::{collections::HashMap, time::Duration};
 
 use tokio::time::Instant;
 
-use crate::{Database, Entry, expiry};
+use crate::{Database, Entry, db_operations::{DbOperation, RemoveKey}, expiry};
 
 #[derive(Clone)]
 pub struct Expiry {
     pub ttl: u64,
     pub now: Instant,
 }
-
-pub type SweeperContext = HashMap<String, Expiry>;
 
 impl Database {
     //these functions will be called by the actor, with &mut db
@@ -23,15 +21,34 @@ impl Database {
         return already_expiry_set;
     }
 
+    pub fn key_expired(entry: &Entry) -> bool {
+        let expiry = entry.1.clone();
+        match expiry {
+            Some(expiry) => return expiry.now.elapsed() >= Duration::from_secs(expiry.ttl),
+            None => false,
+        }
+    }
+
     pub fn get_expired_keys(&self, limit: usize) -> Vec<String> {
         self.data
             .iter()
-            .filter(|(_, (_, expiry))| match expiry {
-                Some(expiry) => return expiry.now.elapsed() >= Duration::from_secs(expiry.ttl),
-                None => false,
-            })
+            .filter(|v| Self::key_expired(v.1))
             .take(limit)
             .map(|(key, _)| key.clone())
             .collect()
+    }
+
+    pub fn get_key_if_active(&mut self, key: String) -> Option<Entry> {
+        //use this instead of directly reading a key
+        let Some(value) = self.data.get(&key).cloned() else {
+            return None;
+        };
+        if Self::key_expired(&value) {
+            //remove the key as it has expired
+            RemoveKey{key}.execute(self);
+            None
+        } else {
+            Some(value)
+        }
     }
 }

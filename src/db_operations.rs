@@ -60,10 +60,11 @@ impl DbOperation for RemoveExpiredKeys {
 
 impl DbOperation for GetKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
-        ResponseFromDbOp::NormalResponse(match db.data.get(&self.key) {
-            Some(value) => value.to_owned().0,
-            None => "Value does not exist!".to_string(),
-        })
+        //this checks if key exists or expired
+        let Some(entry) = db.get_key_if_active(self.key.clone()) else {
+            return ResponseFromDbOp::NormalResponse("Value does not exist!".into());
+        };
+        ResponseFromDbOp::NormalResponse(entry.0)
     }
 }
 
@@ -87,6 +88,10 @@ impl DbOperation for SetEvictionPolicy {
             ttl: self.ttl,
             now: Instant::now(),
         };
+        //check if key expired/removed
+        if db.get_key_if_active(self.key.clone()).is_none() {
+            return ResponseFromDbOp::NormalResponse(String::from("could not add TTL: key does not exist!"));
+        };
         if db.set_expiry(self.key.clone(), expiry) {
             ResponseFromDbOp::NormalResponse(String::from("TTL added"))
         } else {
@@ -108,23 +113,24 @@ impl DbOperation for RemoveKey {
     }
 }
 
-pub struct FilterKeysInData {
-    predicate: Box<dyn Fn((&String, &Entry)) -> bool + Send>,
-    limit: Option<usize>
-}
+// pub struct FilterKeysInData {
+//     predicate: Box<dyn Fn((&String, &Entry)) -> bool + Send>,
+//     limit: Option<usize>
+// }
 
 
-impl DbOperation for FilterKeysInData {
-    fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
-        ResponseFromDbOp::Data(
-            db.data
-            .iter()
-            .take(self.limit.unwrap_or(usize::MAX))
-            .filter(|(k, v)|(self.predicate)((k, v)))
-            .map(|(key, value)| (key.clone(), value.clone()))
-            .collect()
-        )
-    }
-}
+// impl DbOperation for FilterKeysInData {
+//     //to be used later
+//     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
+//         ResponseFromDbOp::Data(
+//             db.data
+//             .iter()
+//             .take(self.limit.unwrap_or(usize::MAX))
+//             .filter(|(k, v)|(self.predicate)((k, v)))
+//             .map(|(key, value)| (key.clone(), value.clone()))
+//             .collect()
+//         )
+//     }
+// }
 
 //a command might call some db_operations

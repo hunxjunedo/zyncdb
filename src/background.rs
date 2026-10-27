@@ -10,7 +10,7 @@ pub async fn bg_sweeper(multi_sender: mpsc::Sender<MainMpscChannelMessage>) {
     //responsible for checking the expiry
     //todo: use channels instead of periodically polling
     //todo: fix the race condition this causes DONE
-    //todo: update expiry when a new set occurs 
+    //todo: update expiry when a new set occurs DONE
 
     loop {
         sleep(Duration::from_secs(read_env_var("SWEEPER_FREQUENCY"))).await;

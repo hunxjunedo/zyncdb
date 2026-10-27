@@ -62,7 +62,7 @@ impl DbOperation for GetKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         //this checks if key exists or expired
         let Some(entry) = db.get_key_if_active(self.key.clone()) else {
-            return ResponseFromDbOp::NormalResponse("Value does not exist!".into());
+            return ResponseFromDbOp::Error("Value does not exist!".into());
         };
         ResponseFromDbOp::NormalResponse(entry.0)
     }
@@ -90,7 +90,7 @@ impl DbOperation for SetEvictionPolicy {
         };
         //check if key expired/removed
         if db.get_key_if_active(self.key.clone()).is_none() {
-            return ResponseFromDbOp::NormalResponse(String::from("could not add TTL: key does not exist!"));
+            return ResponseFromDbOp::Error(String::from("could not add TTL: key does not exist!"));
         };
         if db.set_expiry(self.key.clone(), expiry) {
             ResponseFromDbOp::NormalResponse(String::from("TTL added"))

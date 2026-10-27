@@ -4,6 +4,7 @@ pub mod expiry;
 pub mod db_operations;
 pub mod background;
 use std::collections::HashMap;
+use std::fmt::format;
 use std::str::FromStr;
 use std::{
     env,
@@ -72,8 +73,9 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
 }
 
 pub enum ResponseFromDbOp {
-    Data(HashMap<String, Entry>),
-    NormalResponse(String)
+    NormalResponse(String),
+    Nil,
+    Error(String)
 }
 type ResponseSender = oneshot::Sender<ResponseFromDbOp>;
 pub type MainMpscChannelMessage = (Option<ResponseSender>, Box<dyn DbOperation + Send>);
@@ -125,7 +127,7 @@ pub async fn connection_processor(
             connection
                 .framed
                 .get_mut()
-                .write(&("command very large").to_string().into_bytes())
+                .write(&("command very large\n").to_string().into_bytes())
                 .await
                 .expect("could not send response");
             continue;
@@ -137,7 +139,7 @@ pub async fn connection_processor(
             connection
                 .framed
                 .get_mut()
-                .write(&err.to_string().into_bytes())
+                .write(&format!("ERROR: {} \n", err).into_bytes())
                 .await
                 .expect("could not send response");
             continue;
@@ -150,14 +152,22 @@ pub async fn connection_processor(
         let (sender, reciever) = channel::<ResponseFromDbOp>();
         multi_sender.send((Some(sender), command)).await;
         let command_result = reciever.await.unwrap();
-        if let ResponseFromDbOp::NormalResponse(command_result) = command_result{
-                  connection
+        let to_write = match command_result {
+            ResponseFromDbOp::NormalResponse(result) => {
+                result
+            },
+            ResponseFromDbOp::Error(e) => {
+                format!("ERROR: {}", e)
+            },
+            _ => format!("SOMETHING WENT WRONG")
+        };
+
+            connection
             .framed
             .get_mut()
-            .write(&(command_result + "\n").into_bytes())
+            .write(&(to_write + "\n").into_bytes())
             .await
             .expect("could not send response");
-        }
   
     }
 }

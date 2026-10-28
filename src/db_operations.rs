@@ -76,7 +76,7 @@ impl DbOperation for SetKey {
             expiry = Some(Expiry { ttl, now: Instant::now() })
         }
         ResponseFromDbOp::NormalResponse(match db.data.insert(self.key.clone(), (self.value.clone(), expiry)) {
-            Some(_) => "Value update".to_string(),
+            Some(_) => "Value updated".to_string(),
             None => "Field did not exist, but created it".to_string(),
         })
     }

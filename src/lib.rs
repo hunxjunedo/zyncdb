@@ -72,6 +72,7 @@ pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
     }
 }
 
+#[derive(Debug)]
 pub enum ResponseFromDbOp {
     NormalResponse(String),
     Nil,

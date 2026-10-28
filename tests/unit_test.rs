@@ -1,7 +1,7 @@
 use std::{time::Duration};
 
 use tokio::time::advance;
-use zyncdb::{ResponseFromDbOp, constants::{EVICTION_KEY_NOT_EXIST_ERROR, EVICTION_TTL_NEW, EVICTION_TTL_UPDATE, GET_VALUE_NOT_EXIST_ERROR, REMOVE_KEY_NOT_EXIST_ERROR, REMOVE_KEY_SUCCESFULL, SET_NEW_VALUE, SET_VALUE_UPDATE}, db::Database, db_operations::{DbOperation, GetKey, RemoveKey, SetEvictionPolicy, SetKey}};
+use zyncdb::{ResponseFromDbOp, constants::{EVICTION_KEY_NOT_EXIST_ERROR, EVICTION_TTL_NEW, EVICTION_TTL_UPDATE, GET_VALUE_NOT_EXIST_ERROR, REMOVE_KEY_NOT_EXIST_ERROR, REMOVE_KEY_SUCCESFULL, SET_NEW_VALUE, SET_VALUE_UPDATE}, db::Database, db_operations::{DbOperation, GetKey, RemoveExpiredKeys, RemoveKey, SetEvictionPolicy, SetKey}};
 
 
 #[test]
@@ -156,6 +156,22 @@ async fn eviction_policy_updates_expiry(){
     advance(Duration::from_millis(1)).await;
     let response = GetKey {key: key.clone()}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::Error(x) if x == GET_VALUE_NOT_EXIST_ERROR));
+}
+
+#[tokio::test(start_paused=true)]
+async fn remove_expired_sweeps_correctly(){
+    let mut db = Database::new();
+    SetKey {key: "dead".into(), value: "val1".into(), ttl: Some(10)}.execute(&mut db);
+    SetKey {key: "alive".into(), value: "val2".into(), ttl: Some(20)}.execute(&mut db);
+    SetKey {key: "forever".into(), value: "val3".into(), ttl: None}.execute(&mut db);
+    advance(Duration::from_secs(10)).await;
+    assert_eq!(db.data.len(), 3); //no one has triggered its removal yet
+
+    let response = RemoveExpiredKeys{}.execute(&mut db);
+    assert!(matches!(response, ResponseFromDbOp::NormalResponse(x) if x == "cleared expired keys up to 1"));
+    assert!(!db.data.contains_key("dead"));
+    assert!(db.data.contains_key("alive"));
+    assert!(db.data.contains_key("forever"));
 }
 
 

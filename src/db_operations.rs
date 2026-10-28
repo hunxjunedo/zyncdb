@@ -20,7 +20,7 @@ use std::{
 
 use tokio::time::Instant;
 
-use crate::{ResponseFromDbOp, db::{Database, Entry}, expiry::{self, Expiry}};
+use crate::{ResponseFromDbOp, constants::{GET_VALUE_NOT_EXIST_ERROR, REMOVE_KEY_NOT_EXIST_ERROR, REMOVE_KEY_SUCCESFULL, SET_NEW_VALUE, SET_VALUE_UPDATE}, db::{Database, Entry}, expiry::{self, Expiry}};
 
 //FOLLOWING ARE THE COMMANDS THAT WILL BE SENT OVER CHANNEL TO THE SINGLE DB ACTOR.
 //NO MUTEXES, NO LOCKS, NO ARCS
@@ -62,7 +62,7 @@ impl DbOperation for GetKey {
     fn execute(&self, db: &mut Database) -> ResponseFromDbOp {
         //this checks if key exists or expired
         let Some(entry) = db.get_key_if_active(self.key.clone()) else {
-            return ResponseFromDbOp::Error("Value does not exist!".into());
+            return ResponseFromDbOp::Error(GET_VALUE_NOT_EXIST_ERROR.into());
         };
         ResponseFromDbOp::NormalResponse(entry.0)
     }
@@ -76,8 +76,8 @@ impl DbOperation for SetKey {
             expiry = Some(Expiry { ttl, now: Instant::now() })
         }
         ResponseFromDbOp::NormalResponse(match db.data.insert(self.key.clone(), (self.value.clone(), expiry)) {
-            Some(_) => "Value updated".to_string(),
-            None => "Field did not exist, but created it".to_string(),
+            Some(_) => SET_VALUE_UPDATE.into(),
+            None => SET_NEW_VALUE.into(),
         })
     }
 }
@@ -106,9 +106,9 @@ impl DbOperation for RemoveKey {
         //remove the entry from the sweeper context now
         // db.remove_expiry(self.key.clone());
         if did_not_exist {
-            ResponseFromDbOp::NormalResponse(String::from("the key did not exist"))
+            ResponseFromDbOp::NormalResponse(REMOVE_KEY_NOT_EXIST_ERROR.into())
         } else {
-            ResponseFromDbOp::NormalResponse(String::from("key removed succesfully"))
+            ResponseFromDbOp::NormalResponse(REMOVE_KEY_SUCCESFULL.into())
         }
     }
 }

@@ -20,7 +20,7 @@ use std::{
 
 use tokio::time::Instant;
 
-use crate::{ResponseFromDbOp, constants::{GET_VALUE_NOT_EXIST_ERROR, REMOVE_KEY_NOT_EXIST_ERROR, REMOVE_KEY_SUCCESFULL, SET_NEW_VALUE, SET_VALUE_UPDATE}, db::{Database, Entry}, expiry::{self, Expiry}};
+use crate::{ResponseFromDbOp, constants::{EVICTION_KEY_NOT_EXIST_ERROR, EVICTION_TTL_NEW, EVICTION_TTL_UPDATE, GET_VALUE_NOT_EXIST_ERROR, REMOVE_KEY_NOT_EXIST_ERROR, REMOVE_KEY_SUCCESFULL, SET_NEW_VALUE, SET_VALUE_UPDATE}, db::{Database, Entry}, expiry::{self, Expiry}};
 
 //FOLLOWING ARE THE COMMANDS THAT WILL BE SENT OVER CHANNEL TO THE SINGLE DB ACTOR.
 //NO MUTEXES, NO LOCKS, NO ARCS
@@ -90,12 +90,12 @@ impl DbOperation for SetEvictionPolicy {
         };
         //check if key expired/removed
         if db.get_key_if_active(self.key.clone()).is_none() {
-            return ResponseFromDbOp::Error(String::from("could not add TTL: key does not exist!"));
+            return ResponseFromDbOp::Error(EVICTION_KEY_NOT_EXIST_ERROR.into());
         };
         if db.set_expiry(self.key.clone(), expiry) {
-            ResponseFromDbOp::NormalResponse(String::from("TTL added"))
+            ResponseFromDbOp::NormalResponse(EVICTION_TTL_UPDATE.into())
         } else {
-            ResponseFromDbOp::NormalResponse(String::from("TTL updated"))
+            ResponseFromDbOp::NormalResponse(EVICTION_TTL_NEW.into())
         }
     }
 }

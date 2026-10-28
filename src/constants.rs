@@ -3,3 +3,6 @@ pub const SET_VALUE_UPDATE : &str = "Value updated";
 pub const SET_NEW_VALUE : &str = "Field did not exist, but created it";
 pub const REMOVE_KEY_NOT_EXIST_ERROR: &str = "the key did not exist";
 pub const REMOVE_KEY_SUCCESFULL: &str = "key removed succesfully";
+pub const EVICTION_TTL_NEW: &str = "TTL added";
+pub const EVICTION_TTL_UPDATE: &str = "TTL updated";
+pub const EVICTION_KEY_NOT_EXIST_ERROR: &str = "could not add TTL: key does not exist!";

@@ -115,15 +115,15 @@ fn expire_on_missing_key_does_nothing(){
 }
 
 #[tokio::test(start_paused=true)]
-async fn expiry_through_set_eviction_policy_works(){
+async fn eviction_policy_sets_new_expiry(){
     let mut db = Database::new();
     let key = String::from("test_key");
     let value = String::from("test_value");
     SetKey{key: key.clone(), value: value.clone(), ttl: None}.execute(&mut db);
 
-    //1. check if the command returns correct message, and adds the expiry to the db correctly
     let response = SetEvictionPolicy{key: key.clone(), ttl: 10}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::NormalResponse(x) if x == EVICTION_TTL_NEW));
+
     //check at 9.9 seconds, shoud be there
     advance(Duration::from_millis(9999)).await;
     let response = GetKey{key: key.clone()}.execute(&mut db);
@@ -133,19 +133,29 @@ async fn expiry_through_set_eviction_policy_works(){
     advance(Duration::from_millis(1)).await;
     let response = GetKey{key: key.clone()}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::Error(x) if x == GET_VALUE_NOT_EXIST_ERROR));
-    
+}
 
-
-    //2. check that command returns correct message, correctly updates the expiry, and esnure data exists before expiry but removed after
+#[tokio::test(start_paused=true)]
+async fn eviction_policy_updates_expiry(){
+    let mut db = Database::new();
+    let key = String::from("test_key");
+    let value = String::from("test_value");
     SetKey{key: key.clone(), value: value.clone(), ttl: Some(10)}.execute(&mut db);
+
+    //update expiry before expired
     advance(Duration::from_millis(9999)).await;
-    let response = SetEvictionPolicy{key: key.clone(), ttl: 10}.execute(&mut db);
+    let response: ResponseFromDbOp = SetEvictionPolicy{key: key.clone(), ttl: 5}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::NormalResponse(x) if x == EVICTION_TTL_UPDATE));
-    advance(Duration::from_millis(9999)).await;
+
+    //check if value is still there before the updated expiry
+    advance(Duration::from_millis(4999)).await;
     let response = GetKey {key: key.clone()}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::NormalResponse(x) if x == value.clone()));
+
+    //check if value gone after updated expiry
     advance(Duration::from_millis(1)).await;
     let response = GetKey {key: key.clone()}.execute(&mut db);
     assert!(matches!(response, ResponseFromDbOp::Error(x) if x == GET_VALUE_NOT_EXIST_ERROR));
-
 }
+
+

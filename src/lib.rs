@@ -22,6 +22,7 @@ use tokio_util::{
 };
 
 use crate::commands::{Command, Get, Set, Del, Expire};
+use crate::constants::PARSER_INVALID_COMMAND;
 use crate::db::{Database, Entry};
 use crate::db_operations::DbOperation;
 pub struct Connection {
@@ -40,21 +41,24 @@ pub fn read_env_var<T: FromStr>(key: &str) -> T {
 
 pub fn from_string(mut raw_data: String) -> Result<Box<dyn Command + Send>> {
     //todo: command should decide itself what data to get
-    let maybe_comand: String = raw_data.drain(..4).collect();
-    match maybe_comand.as_str().trim() {
+    if raw_data.len() < 3 {
+        return Err(format_err!(PARSER_INVALID_COMMAND));
+    }
+    let maybe_comand: String = raw_data.drain(..3).collect();
+    match maybe_comand.as_str() {
         "GET" => {
-            return Get::from_string(raw_data);
+            return Get::from_string(raw_data.trim().into());
         }
         "SET" => {
-            return Set::from_string(raw_data);
+            return Set::from_string(raw_data.trim().into());
         }
         "DEL" => {
-            return Del::from_string(raw_data);
+            return Del::from_string(raw_data.trim().into());
         }
         "EXP" => {
-            return Expire::from_string(raw_data);
+            return Expire::from_string(raw_data.trim().into());
         }
-        _ => return Err(format_err!("invalid command")),
+        _ => return Err(format_err!(PARSER_INVALID_COMMAND)),
     }
 }
 

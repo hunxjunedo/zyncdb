@@ -44,19 +44,20 @@ pub fn from_string(mut raw_data: String) -> Result<Box<dyn Command + Send>> {
     if raw_data.len() < 3 {
         return Err(format_err!(PARSER_INVALID_COMMAND));
     }
-    let maybe_comand: String = raw_data.drain(..3).collect();
-    match maybe_comand.as_str() {
+    let mut chunks: Vec<&str> = raw_data.trim().split(' ').collect();
+    let maybe_command = chunks.remove(0);
+    match maybe_command {
         "GET" => {
-            return Get::from_string(raw_data.trim().into());
+            return Get::from_string(chunks.join(" "));
         }
         "SET" => {
-            return Set::from_string(raw_data.trim().into());
+            return Set::from_string(chunks.join(" "));
         }
         "DEL" => {
-            return Del::from_string(raw_data.trim().into());
+            return Del::from_string(chunks.join(" "));
         }
         "EXP" => {
-            return Expire::from_string(raw_data.trim().into());
+            return Expire::from_string(chunks.join(" "));
         }
         _ => return Err(format_err!(PARSER_INVALID_COMMAND)),
     }

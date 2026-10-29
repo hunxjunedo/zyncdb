@@ -4,8 +4,7 @@ pub mod expiry;
 pub mod db_operations;
 pub mod background;
 pub mod constants;
-use std::collections::HashMap;
-use std::fmt::format;
+use std::mem::take;
 use std::str::FromStr;
 use std::{
     env,
@@ -39,35 +38,21 @@ pub fn read_env_var<T: FromStr>(key: &str) -> T {
         .unwrap_or_else(|_| panic!("environment variable not defined or has invalid value"))
 }
 
-pub fn from_string(raw_data: String) -> Result<Box<dyn Command + Send>> {
-    let commands_chunks: Vec<&str> = raw_data.split(" ").collect();
-    println!("{:?}", commands_chunks);
+pub fn from_string(mut raw_data: String) -> Result<Box<dyn Command + Send>> {
     //todo: command should decide itself what data to get
-    match commands_chunks[0] {
+    let maybe_comand: String = raw_data.drain(..4).collect();
+    match maybe_comand.as_str().trim() {
         "GET" => {
-            return Ok(Box::new(Get {
-                field: commands_chunks[1].to_string(),
-            }) as Box<dyn Command + Send>);
+            return Get::from_string(raw_data);
         }
         "SET" => {
-            return Ok(Box::new(Set {
-                field: commands_chunks[1].to_string(),
-                data: commands_chunks[2].to_string(),
-                ttl: commands_chunks[3].parse::<u64>().map_or(None, |v|Some(v))
-            }));
+            return Set::from_string(raw_data);
         }
         "DEL" => {
-            return Ok(Box::new(Del {
-                field: commands_chunks[1].to_string(),
-            }));
+            return Del::from_string(raw_data);
         }
         "EXP" => {
-            return Ok(Box::new(Expire {
-                field: commands_chunks[1].to_string(),
-                ttl: commands_chunks[2]
-                    .parse::<u64>()
-                    .context("please provide a positive number")?,
-            }));
+            return Expire::from_string(raw_data);
         }
         _ => return Err(format_err!("invalid command")),
     }
@@ -152,7 +137,7 @@ pub async fn connection_processor(
 
         //now: start a one shot channel, and send it over with the command that needs to be executed
         let (sender, reciever) = channel::<ResponseFromDbOp>();
-        multi_sender.send((Some(sender), command)).await;
+        _ = multi_sender.send((Some(sender), command)).await;
         let command_result = reciever.await.unwrap();
         let to_write = match command_result {
             ResponseFromDbOp::NormalResponse(result) => {

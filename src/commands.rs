@@ -1,6 +1,6 @@
 
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use downcast_rs::{Downcast, DowncastSend, DowncastSync, impl_downcast};
 
 use crate::{
@@ -84,6 +84,9 @@ impl Command for Set {
         {
             ttl = Some(parsed_result.context(SET_INVALID_TTL_ERROR)?);
         }
+        if ttl == Some(0) {
+            bail!(SET_INVALID_TTL_ERROR);
+        }
 
         return Ok(Box::new(Set {
             field: chunks[0].to_string(),
@@ -117,6 +120,12 @@ pub struct Expire {
     pub ttl: u64,
 }
 
+impl PartialEq for Expire {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field && self.ttl == other.ttl
+    }
+}
+
 impl Command for Expire {
     fn execute(&self) -> DbOp {
         Box::from(SetEvictionPolicy {
@@ -135,6 +144,9 @@ impl Command for Expire {
         let ttl = chunks[1]
             .parse::<u64>()
             .context(EXPIRE_INVALID_TTL_ERROR)?;
+        if ttl == 0 {
+            bail!(EXPIRE_INVALID_TTL_ERROR);
+        }
         return Ok(Box::new(Expire {
             field: chunks[0].to_string(),
             ttl,

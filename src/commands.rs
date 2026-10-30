@@ -45,7 +45,7 @@ impl Command for Get {
     where
         Self: Sized,
     {
-        let chunks: Vec<&str> = raw.split(' ').collect();
+        let chunks: Vec<&str> = raw.split(' ').filter(|&v|v != "").collect();
         if chunks.len() < 1 || raw.len() == 0 {
             return Err(anyhow!(GET_FIELD_NAME_ERROR));
         };
@@ -73,7 +73,7 @@ impl Command for Set {
     where
         Self: Sized,
     {
-        let chunks: Vec<&str> = raw.split(' ').collect();
+        let chunks: Vec<&str> = raw.split(' ').filter(|&v|v != "").collect();
         if chunks.len() < 2 {
             return Err(anyhow!(SET_ARGS_ERROR));
         };
@@ -105,7 +105,7 @@ impl Command for Del {
     where
         Self: Sized,
     {
-        let chunks: Vec<&str> = raw.split(' ').collect();
+        let chunks: Vec<&str> = raw.split(' ').filter(|&v|v != "").collect();
         if chunks.len() < 1 || raw.len() == 0  {
             return Err(anyhow!(DEL_FIELD_NAME_ERROR));
         };
@@ -137,7 +137,7 @@ impl Command for Expire {
     where
         Self: Sized,
     {
-        let chunks: Vec<&str> = raw.split(' ').collect();
+        let chunks: Vec<&str> = raw.split(' ').filter(|&v|v != "").collect();
         if chunks.len() < 2 {
             return Err(anyhow!(EXPIRE_ARGS_ERROR));
         };

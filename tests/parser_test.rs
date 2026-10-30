@@ -3,6 +3,7 @@ use zyncdb::{commands::{Del, Expire, Get, Set}, constants::{DEL_FIELD_NAME_ERROR
 #[test]
 fn throws_error_on_empty_message(){
     assert!(from_string("    ".into()).is_err_and(|x|x.to_string()==PARSER_INVALID_COMMAND));
+    assert!(from_string("".into()).is_err_and(|x|x.to_string()==PARSER_INVALID_COMMAND));
 }
 
 #[test]

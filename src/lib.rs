@@ -21,7 +21,7 @@ use tokio_util::{
     sync::CancellationToken,
 };
 
-use crate::commands::{Command, Get, Set, Del, Expire};
+use crate::commands::{BoxedCommad, Command, Del, Expire, Get, Set};
 use crate::constants::PARSER_INVALID_COMMAND;
 use crate::db::{Database, Entry};
 use crate::db_operations::DbOperation;
@@ -39,7 +39,7 @@ pub fn read_env_var<T: FromStr>(key: &str) -> T {
         .unwrap_or_else(|_| panic!("environment variable not defined or has invalid value"))
 }
 
-pub fn from_string(mut raw_data: String) -> Result<Box<dyn Command + Send>> {
+pub fn from_string(raw_data: String) -> Result<BoxedCommad> {
     //todo: command should decide itself what data to get
     if raw_data.len() < 3 {
         return Err(format_err!(PARSER_INVALID_COMMAND));

@@ -16,7 +16,7 @@ fn throws_error_on_invalid_command(){
 #[test]
 fn parses_get(){
    //command parsed correclt 
-   assert!(from_string("GET key".into()).unwrap().downcast_ref::<Get>().expect("expected GET").field == "key");
+   assert!(from_string("GET  key".into()).unwrap().downcast_ref::<Get>().expect("expected GET").field == "key");
    //missing args check
    assert!(from_string("GET     ".into()).is_err_and(|e|e.to_string()==GET_FIELD_NAME_ERROR));
 }
@@ -25,9 +25,9 @@ fn parses_get(){
 #[test]
 fn parses_set(){
    //command parsed correclt: without ttl
-   assert!(from_string("SET key value".into()).unwrap().downcast_ref::<Set>().expect("expected SET") == &Set {field: "key".into(), data: "value".into(), ttl: None});
+   assert!(from_string("SET   key value".into()).unwrap().downcast_ref::<Set>().expect("expected SET") == &Set {field: "key".into(), data: "value".into(), ttl: None});
    //with ttl 
-   assert!(from_string("SET key value 30".into()).unwrap().downcast_ref::<Set>().expect("expected SET") == &Set {field: "key".into(), data: "value".into(), ttl: Some(30)});
+   assert!(from_string("SET key   value 30".into()).unwrap().downcast_ref::<Set>().expect("expected SET") == &Set {field: "key".into(), data: "value".into(), ttl: Some(30)});
   //wrong ttl format
   assert!(from_string("SET key value thirty".into()).is_err_and(|e|e.to_string() == SET_INVALID_TTL_ERROR));
   //wrong or missing args
@@ -40,6 +40,7 @@ fn parses_set(){
 fn parses_expire(){
     //correct command
     assert!(from_string("EXP key 30".into()).unwrap().downcast_ref::<Expire>().expect("expected EXP") == &Expire {field: "key".into(), ttl: 30});
+    assert!(from_string("EXP   key   30".into()).unwrap().downcast_ref::<Expire>().expect("expected EXP") == &Expire {field: "key".into(), ttl: 30});
     //wrong format of ttl
     assert!(from_string("EXP key thirty".into()).is_err_and(|v|v.to_string() == EXPIRE_INVALID_TTL_ERROR));
     //missing args
@@ -50,7 +51,7 @@ fn parses_expire(){
 #[test]
 fn parses_del(){
 //command parsed correclt 
-   assert!(from_string("DEL key".into()).unwrap().downcast_ref::<Del>().expect("expected DEL").field == "key");
+   assert!(from_string("DEL    key".into()).unwrap().downcast_ref::<Del>().expect("expected DEL").field == "key");
    //missing args check
    assert!(from_string("DEL     ".into()).is_err_and(|e|e.to_string()==DEL_FIELD_NAME_ERROR));
 }

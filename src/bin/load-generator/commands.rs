@@ -1,6 +1,11 @@
+use rand::RngExt;
 use random_word::Lang;
 
 use crate::lib::LoadType;
+
+fn random_key() -> String {
+    return format!("k{}", rand::rng().random_range(0..=9999));
+}
 
 pub fn commands_generator(requests_to_send: u32, load_type: LoadType) -> Vec<Vec<u8>>{
         let mut last_field_name: Option<String> = None;
@@ -13,7 +18,8 @@ pub fn commands_generator(requests_to_send: u32, load_type: LoadType) -> Vec<Vec
                 return byte_command;
 
             } else {
-                let random_field_name = format!("{}{}", random_word::get(Lang::En), i);
+                //limit uniqueness to 10k unique keys
+                let random_field_name = random_key();
                 let random_name = random_word::get(Lang::En);
                 let command: String = format!("SET {} {}\n", random_field_name, random_name);
                 last_field_name = Some(random_field_name);

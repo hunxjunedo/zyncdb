@@ -10,12 +10,25 @@ use tokio_util::{
 
 use crate::{client::client, commands::pre_fill_keys, lib::{LoadType, TimesReport, graceful_shutdown_register, print_stats}};
 
+//tasks for tomorrow:
+// 1 client: 100000
+// 10 client: 50000
+// 50 client: 25000
+// 100 client: 15000
+// record in a readme
+// Key space: 10,000 keys, in all runs.
+// Warm-up: one throwaway run first (for example mixed, 10 clients) and discard it.
+// Repeats: run the whole sweep 3 times and keep the median run for each row. 3 workloads × 4 sizes is 12 runs, about 5 to 10 minutes per sweep.
+// A pause of about 10 seconds between runs. It lets the previous connections close and gives the laptop a moment to cool. laptop slows down when hot.
+
+
 #[tokio::main]
 async fn main() {
+    //todo: double check and make sure no errors reported
     let requests_to_send = 25000;
     let token = CancellationToken::new();
     spawn(graceful_shutdown_register(token.clone()));
-    load_generator(requests_to_send, 50, LoadType::Mix, token).await;
+    load_generator(requests_to_send, 50, LoadType::Get, token).await;
 }
 
 

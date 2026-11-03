@@ -1,5 +1,6 @@
-mod lib;
-mod mix_client;
+pub mod lib;
+mod commands;
+mod client;
 use std::{ sync::Arc};
 use tokio::{spawn, sync::Barrier, time::Instant};
 
@@ -7,7 +8,7 @@ use tokio_util::{
     sync::CancellationToken,
 };
 
-use crate::{lib::{LoadType, TimesReport, graceful_shutdown_register, print_stats}, mix_client::mix_client};
+use crate::{lib::{LoadType, TimesReport, graceful_shutdown_register, print_stats}, client::client};
 
 #[tokio::main]
 async fn main() {
@@ -35,10 +36,7 @@ async fn load_generator(
         }
         let token_to_pass = token.clone();
         let barrier_to_pass = Arc::clone(&barrier);
-        let handle = tokio::spawn(match load_type {
-            LoadType::Mix => mix_client(requests_to_send, token_to_pass, barrier_to_pass),
-            _ => mix_client(requests_to_send, token_to_pass, barrier_to_pass),
-        });
+        let handle = tokio::spawn(client(requests_to_send, token_to_pass, barrier_to_pass, load_type.clone()));
         handles.push(handle);
         n += 1;
     }

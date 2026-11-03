@@ -1,7 +1,7 @@
 use std::time::Duration;
-
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
+#[derive(Clone)]
 pub enum LoadType {
     Mix,
     Get,

@@ -8,7 +8,7 @@ use tokio_util::{
     sync::CancellationToken,
 };
 
-use crate::{lib::{LoadType, TimesReport, graceful_shutdown_register, print_stats}, client::client};
+use crate::{client::client, commands::pre_fill_keys, lib::{LoadType, TimesReport, graceful_shutdown_register, print_stats}};
 
 #[tokio::main]
 async fn main() {
@@ -29,7 +29,8 @@ async fn load_generator(
     let mut handles = vec![];
     let mut times = vec![];
     let barrier = Arc::new(Barrier::new(clients_to_spawn as usize + 1)); //parent will also wait
-
+    //before running any test, prefill the key-set. But why not do it once in main ? Every benchmark should be self-contained, completely independent
+    pre_fill_keys("127.0.0.1:8080", 10000, "sample_val").await;
     loop {
         if n >= clients_to_spawn {
             break;

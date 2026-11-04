@@ -9,6 +9,8 @@ dotenv = "0.15.0"
 downcast-rs = "2.0.2"
 rand = "0.10.3"
 random_word = { version = "0.5.3", features = ["en"] }
+serde_json = "1.0.154"
+tera = "1"
 tokio = { version = "1.54.0", features = ["full"] }
 tokio-stream = "0.1.19"
 tokio-util = { version = "0.7.20", features = ["codec"] }

@@ -76,7 +76,7 @@ pub async fn graceful_shutdown_register(token: CancellationToken) {
     }
 }
 
-pub fn get_median_time_figures(all_figures: Vec<Vec<TimesReport>>) -> [TimesReport; 12] {
+pub fn get_median_time_figures(all_figures: &Vec<Vec<TimesReport>>) -> [TimesReport; 12] {
     let mut iter_map =  (0..12).map(|i|{
         TimesReport::get_median_report(&all_figures[0][i], &all_figures[1][i], &all_figures[2][i])
     });

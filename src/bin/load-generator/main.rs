@@ -1,4 +1,5 @@
 pub mod lib;
+mod benchmark;
 mod commands;
 mod client;
 use core::time;
@@ -49,8 +50,9 @@ async fn main() {
         sweep_results.push(result);
     }
 
-    let median_results : [TimesReport; 12] = get_median_time_figures(sweep_results);
-    println!("{:?}", median_results);
+    let median_results : [TimesReport; 12] = get_median_time_figures(&sweep_results);
+    let dir = benchmark::write_readme(&sweep_results, &median_results).unwrap();
+    println!("report written to {}", dir.display());
     
 }
 

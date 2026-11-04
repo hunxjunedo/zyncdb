@@ -1,0 +1,115 @@
+{# Tera template for one benchmark report (one branch / one commit / one sweep set).
+   Keep the logic in Rust: numbers arrive pre-formatted where formatting matters. #}
+# zyncdb benchmark: `{{ meta.branch }}` @ `{{ meta.commit }}`
+
+{{ meta.title }}
+
+**Headline ({{ headline.clients }} clients, median of {{ method.sweeps }} sweeps):** {{ headline.get_rps }} GET/s, {{ headline.set_rps }} SET/s, {{ headline.mix_rps }} mixed requests/s. Slowest 1% of mixed replies under {{ headline.mix_p99_ms | round(precision=2) }} ms.
+
+## Version
+
+| | |
+|---|---|
+| Branch | `{{ meta.branch }}` |
+| Commit | `{{ meta.commit }}`{% if meta.dirty %} (**uncommitted changes present**){% endif %} |
+| Commit message | {{ meta.commit_message }} |
+| Date | {{ meta.date }} |
+| Build | {{ meta.build_profile }} |
+| Rust | {{ meta.rustc }} |
+| Load generator command | `{{ meta.repro_command }}` |
+
+## Environment
+
+| | |
+|---|---|
+| Machine | {{ env.machine }} |
+| CPU / cores | {{ env.cpu }} |
+| RAM | {{ env.ram }} |
+| OS | {{ env.os }} |
+| `ulimit -n` | {{ env.ulimit }} |
+| Server and load generator | {{ env.placement }} |
+| Conditions | {{ env.conditions }} |
+
+## Server configuration
+
+| Setting | Value |
+|---|---|
+| `CONNECTION_LIMIT` | {{ server.connection_limit }} |
+| `MAX_COMMAND_LENGTH` | {{ server.max_command_length }} |
+| `CONNECTION_TIMEOUT` (s) | {{ server.connection_timeout }} |
+| `SWEEPER_FREQUENCY` (s) | {{ server.sweeper_frequency }} |
+{% for s in server.extra -%}
+| {{ s.name }} | {{ s.value }} |
+{% endfor %}
+## Method
+
+- **Workloads:** GET only, SET only, mixed (alternating SET and GET).
+- **Keys:** {{ method.key_space }} keys (`k0` to `k{{ method.key_space - 1 }}`), all filled with a known value before every run, so GETs always find a value and the map does not grow during a run.
+- **Values:** {{ method.value_description }}
+- **Clients:** closed loop (each client waits for a reply before sending the next request). Client counts: {{ method.clients_list }}.
+- **Timing:** each request is timed from just before it is written until its reply line is read. Requests per second is total requests divided by the wall-clock time from when all clients are connected until the last reply. Filling, command generation and connecting are outside the clock.
+- **Repeats:** {{ method.warmup }} Then {{ method.sweeps }} sweeps of every run, {{ method.pause_secs }} s pause between runs. Each cell is the **median** of the {{ method.sweeps }} runs; requests per second also shows the range. "Slowest reply" is the worst single reply seen in any run.
+- **Validity:** {{ method.validity_rule }}
+
+## Results
+
+Median of {{ method.sweeps }} runs. Times in milliseconds. p99 = the slowest 1%: 99 of every 100 replies were faster than this.
+
+| Workload | Clients | Requests per client | Requests per second (range) | p50 | p99 | p99.9 | Slowest reply | Errors |
+|---|---|---|---|---|---|---|---|---|
+{% for r in rows -%}
+| {{ r.workload }} | {{ r.clients }} | {{ r.requests_per_client }} | {{ r.rps }} ({{ r.rps_min }} to {{ r.rps_max }}) | {{ r.p50_ms | round(precision=3) }} | {{ r.p99_ms | round(precision=3) }} | {{ r.p99_9_ms | round(precision=3) }} | {{ r.slowest_ms | round(precision=1) }} | {{ r.errors }} |
+{% endfor %}
+{% if summary %}{{ summary }}
+
+{% endif %}
+{% if notes %}### Observations
+
+{% for n in notes -%}
+- {{ n }}
+{% endfor %}
+{% endif %}
+{% if memory %}## Memory
+
+| | Resident memory |
+|---|---|
+| Idle, just started | {{ memory.idle }} |
+| After filling {{ method.key_space }} keys | {{ memory.after_fill }} |
+| Peak during the {{ memory.peak_clients }}-client run | {{ memory.peak }} |
+| Per connection (peak minus idle, divided by clients) | {{ memory.per_connection }} |
+
+{% endif %}
+{% if compare %}## Change versus `{{ compare.baseline_branch }}` @ `{{ compare.baseline_commit }}`
+
+Same method and machine. Positive means higher than the baseline.
+
+| Workload | Clients | Requests per second now | Baseline | Change | p99 now (ms) | p99 baseline (ms) |
+|---|---|---|---|---|---|---|
+{% for c in compare.rows -%}
+| {{ c.workload }} | {{ c.clients }} | {{ c.rps }} | {{ c.baseline_rps }} | {{ c.change }} | {{ c.p99_ms | round(precision=3) }} | {{ c.baseline_p99_ms | round(precision=3) }} |
+{% endfor %}
+{% endif %}
+## Every individual run
+
+<details>
+<summary>All {{ raw_runs | length }} runs (before taking the median)</summary>
+
+| Sweep | Workload | Clients | Requests per second | p50 (ms) | p99 (ms) | p99.9 (ms) | Slowest (ms) | Errors |
+|---|---|---|---|---|---|---|---|---|
+{% for r in raw_runs -%}
+| {{ r.sweep }} | {{ r.workload }} | {{ r.clients }} | {{ r.rps }} | {{ r.p50_ms | round(precision=3) }} | {{ r.p99_ms | round(precision=3) }} | {{ r.p99_9_ms | round(precision=3) }} | {{ r.slowest_ms | round(precision=1) }} | {{ r.errors }} |
+{% endfor %}
+</details>
+
+## Caveats
+
+- The server and the load generator share a machine unless the Environment table says otherwise, so they compete for CPU.
+- Clients are closed loop, so slow moments can look smaller than a user with a steady arrival rate would experience.
+- Key sequences come from an unseeded random generator, so runs vary slightly; the median and range account for that.
+- In the mixed workload, each GET reads the key the same client just wrote.
+{% for c in extra_caveats -%}
+- {{ c }}
+{% endfor %}
+---
+
+Generated by the zyncdb load generator on {{ meta.date }}. Raw data: `{{ meta.raw_csv_path }}`.

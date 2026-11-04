@@ -7,7 +7,11 @@ use tokio_stream::StreamExt;
 use crate::{commands::commands_generator, lib::LoadType};
 
 pub async fn client(requests_to_send: u32, token: CancellationToken, barrier: Arc<Barrier>, load_type: LoadType) -> Vec<Duration> {
-
+    //if cancel is called whilst a client is running, it sends only the times it already has, works fine.
+    //but what if cancel was already called, even before a client is run ?
+    //still not a problem since we will judge based on only the clients that were able to produce some times
+    //but what if cancel was called before any of the clients in the load could generate any times ? it would result in an empty vec, and have issues with calculation
+    //solution: when a cancel is called, exit the current load with whatever times you have available, but dont just exit, move to the next load!
     let mut times = vec![];
     //also generate the commands beforehand
     let commands = commands_generator(requests_to_send, load_type);

@@ -1,8 +1,10 @@
 pub mod lib;
 mod commands;
 mod client;
-use std::{ sync::Arc};
+use core::time;
+use std::{ sync::Arc, thread, time::Duration};
 use tokio::{spawn, sync::Barrier, time::Instant};
+use crate::lib::{LoadType::{Get, Mix, Set}, get_median_time_figures};
 
 use tokio_util::{
     sync::CancellationToken,
@@ -25,10 +27,47 @@ use crate::{client::client, commands::pre_fill_keys, lib::{LoadType, TimesReport
 #[tokio::main]
 async fn main() {
     //todo: double check and make sure no errors reported
-    let requests_to_send = 25000;
     let token = CancellationToken::new();
     spawn(graceful_shutdown_register(token.clone()));
-    load_generator(requests_to_send, 50, LoadType::Get, token).await;
+    //run a warmup first
+    if load_generator(10000, 10, LoadType::Mix, token.clone()).await.is_none() {
+        return;
+    }
+
+    let mut sweep_results = vec![];
+    for _ in 0..3 {
+        thread::sleep(Duration::from_secs(10));
+        //three sweeps
+        if token.is_cancelled() {
+            return;
+        }
+        let result = sweep(token.clone()).await;
+        if result.is_none() {
+            return;
+        }
+        let result = result.unwrap();
+        sweep_results.push(result);
+    }
+
+    let median_results : [TimesReport; 12] = get_median_time_figures(sweep_results);
+    println!("{:?}", median_results);
+    
+}
+
+async fn sweep(token: CancellationToken) -> Option<Vec<TimesReport>>{
+    //what if cancellation is call
+    let mut times_reports = vec![];
+for workload in [Get, Set, Mix] {
+    for (clients, reqs) in [(1, 100_000), (10, 50_000), (50, 25_000), (100, 15_000)] {
+        if token.is_cancelled() { println!("aborted; finished runs are in the results file"); return None; }
+        match load_generator(reqs, clients, workload.clone(), token.clone()).await {
+            Some(report) => {times_reports.push(report)},
+            None => { println!("run interrupted, discarded"); return None; }
+        }
+    }
+}
+
+return Some(times_reports);
 }
 
 
@@ -37,7 +76,7 @@ async fn load_generator(
     clients_to_spawn: u32,
     load_type: LoadType,
     token: CancellationToken,
-) -> TimesReport {
+) -> Option<TimesReport> {
     let mut n = 0;
     let mut handles = vec![];
     let mut times = vec![];
@@ -67,6 +106,9 @@ async fn load_generator(
     //done, print the stats.
     
     let reqs_count = times.len();
+    if reqs_count == 0 {
+        return None;
+    }
     times.sort();
     let pick = |p: f64| times[((reqs_count as f64 * p) as usize).min(reqs_count - 1)];
     let time_report = TimesReport {
@@ -78,6 +120,6 @@ async fn load_generator(
     };
     
     print_stats(&time_report, load_type, clients_to_spawn, reqs_count);
-    return time_report;
+    return Some(time_report);
 }
 
